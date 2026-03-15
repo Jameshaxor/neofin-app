@@ -390,44 +390,73 @@ export default function App() {
 }
 
 // ==========================================
-// ONBOARDING SCREEN
+// ONBOARDING SCREEN (Professional Greeting)
 // ==========================================
 function OnboardingScreen({ onComplete, isLoading }) {
   const [name, setName] = useState('');
+  const [isGreeting, setIsGreeting] = useState(false);
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    // Show the professional greeting screen
+    setIsGreeting(true);
+
+    // Wait 2 seconds for the transition, then load the dashboard
+    setTimeout(() => {
+      onComplete(name);
+    }, 2000);
+  };
+
+  // The Professional Greeting Screen
+  if (isGreeting || isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 transition-colors duration-200">
+        <div className="flex flex-col items-center animate-fade-in">
+          <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-6" />
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Welcome, {name}.</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Initializing your secure financial workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // The Initial Input Form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 transition-colors duration-200">
-      <div className="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 animate-fade-in text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
-        <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mx-auto mb-6 text-blue-600 dark:text-blue-400">
-          <Compass className="w-8 h-8" />
+      <div className="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 animate-fade-in text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
+        <div className="w-14 h-14 bg-gray-50 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-gray-100 dark:border-gray-700 text-blue-600">
+          <Compass className="w-7 h-7" />
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome to NeoFin</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-8">Your intelligent, cloud-synced wealth tracker. What should we call you?</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">NeoFin Setup</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Please enter your preferred display name to continue.</p>
         
-        <form onSubmit={(e) => { e.preventDefault(); onComplete(name); }}>
+        <form onSubmit={handleSubmit}>
           <input 
             type="text" 
             autoFocus
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your first name"
-            className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-lg mb-6 text-center"
+            placeholder="Full Name or First Name"
+            className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-base mb-6 text-center"
             disabled={isLoading}
           />
           <button 
             type="submit" 
             disabled={!name.trim() || isLoading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center"
           >
-            {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Start Tracking"}
+            Continue to Dashboard
           </button>
         </form>
       </div>
     </div>
   );
 }
+
 
 // ==========================================
 // DASHBOARD VIEW
