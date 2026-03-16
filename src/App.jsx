@@ -74,7 +74,39 @@ const autoCategorize = (description) => {
   
   return 'Other';
 };
+// --- TAVILY SEARCH INTEGRATION ---
+const searchWeb = async (query) => {
+  // Safely pulling the key from Vercel!
+  const tavilyKey = import.meta.env.VITE_TAVILY_API_KEY; 
 
+  if (!tavilyKey) {
+    console.error("Tavily key is missing!");
+    return "No live data available.";
+  }
+
+  try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: tavilyKey,
+        query: query,
+        search_depth: "basic", 
+        max_results: 3,
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!data.results || data.results.length === 0) return "No real-time data found.";
+
+    // Combine the top 3 results into a clean block for the AI to read
+    return data.results.map(r => `Source: ${r.title}\nInfo: ${r.content}`).join('\n\n');
+  } catch (e) {
+    console.error("Tavily Search failed:", e);
+    return "Could not fetch real-time data.";
+  }
+};
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
   // Hardcoding for immediate testing on your ASUS!
@@ -858,26 +890,46 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
   const handleSendAiMessage = async (text) => {
     if (!text.trim() || isAiLoading) return;
 
+    // 1. Show user message instantly
     const userMsg = { role: 'user', text };
     setAiMessages(prev => [...prev, userMsg]);
     setAiInput('');
     setIsAiLoading(true);
 
     try {
+      // 2. TRIGGER WORD CHECK: Does the user want live market data?
+      const keywords = ["market", "nifty", "stock", "price", "sensex", "gold", "today", "news"];
+      const needsSearch = keywords.some(word => text.toLowerCase().includes(word));
+      
+      let liveWebData = "No live data needed for this query.";
+
+      if (needsSearch) {
+        // Pauses to search the internet first!
+        liveWebData = await searchWeb(text); 
+      }
+
+      // 3. Prepare the AI's Brain (Memory + Live Data)
       const historyContext = aiMessages.slice(-4)
         .map(m => `${m.role === 'ai' ? 'Assistant' : 'User'}: ${m.text}`)
         .join('\n');
 
-      const systemPrompt = `You are NeoFin AI, a helpful wealth manager.
-      Conversation History for context:
+      const systemPrompt = `You are NeoFin AI, an expert Indian wealth manager. 
+      You have access to the following real-time web search data. If it is relevant to the user's question, use it to give an accurate, up-to-date answer. Do not mention that you did a web search, just provide the answer naturally.
+      
+      REAL-TIME INTERNET DATA:
+      ${liveWebData}
+      
+      CONVERSATION HISTORY:
       ${historyContext}`;
 
+      // 4. Send everything to Groq
       const response = await callGeminiAPI(text, systemPrompt);
       
+      // 5. Show the AI's answer on screen
       setAiMessages(prev => [...prev, { role: 'ai', text: response }]);
     } catch (error) {
       console.error("AI Error:", error);
-      setAiMessages(prev => [...prev, { role: 'ai', text: "The connection flickered. Try sending that again?" }]);
+      setAiMessages(prev => [...prev, { role: 'ai', text: "My internet connection dropped. Ask me again?" }]);
     } finally {
       setIsAiLoading(false);
     }
