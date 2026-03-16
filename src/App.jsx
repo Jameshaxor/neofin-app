@@ -834,18 +834,60 @@ function GoalsView({ goals, db, user, appId }) {
 // AI ASSISTANT VIEW
 // ==========================================
 function AIAssistantView({ transactions, analytics, budgets, goals, profile, selectedMonth }) {
-  const [messages, setMessages] = useState([{ role: 'assistant', text: `Hey ${profile?.name}! 👋 I'm your NeoFin Wealth Advisor. I'm currently analyzing your data for ${selectedMonth === 'all' ? 'All Time' : selectedMonth}.` }]);
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem('neofin-ai-chats');
+    return saved ? JSON.parse(saved) : [{ 
+      role: 'assistant', 
+      text: `Hey ${profile?.name}! 👋 I'm your NeoFin Wealth Advisor. I'm currently analyzing your data for ${selectedMonth === 'all' ? 'All Time' : selectedMonth}.` 
+    }];
+  });
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const messagesEndRef = useRef(null);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => {
+    localStorage.setItem('neofin-ai-chats', JSON.stringify(messages));
+  }, [messages]);
 
   const handleSend = async (textPrompt) => {
     const userMessage = typeof textPrompt === 'string' ? textPrompt.trim() : input.trim();
     if (!userMessage || loading) return;
-    setInput(''); setMessages(prev => [...prev, { role: 'user', text: userMessage }]); setLoading(true);
 
-    const systemPrompt = `You are a friendly personal finance advisor for a young Indian adult. User: ${profile?.name}. Focus on managing monthly income effectively, compounding, and SIPs. Use ₹ symbol. Data Context: Income: ₹${analytics.totalIncome}, Expenses: ₹${analytics.totalExpense}, Balance: ₹${analytics.balance}, Budgets: ${JSON.stringify(budgets)}`;
-    const aiResponseText = await callGeminiAPI(userMessage, systemPrompt);
-    setMessages(prev => [...prev, { role: 'assistant', text: aiResponseText }]); setLoading(false);
+    // 1. Clear input and add user message immediately
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setLoading(true);
+
+    try {
+      // 2. Short-Term Memory: Grab last 3 messages so AI follows the conversation
+      const historyContext = messages.slice(-3)
+        .map(m => `${m.role === 'assistant' ? 'AI' : 'User'}: ${m.text}`)
+        .join('\n');
+
+      const systemPrompt = `You are a friendly personal finance advisor for a young Indian adult named ${profile?.name}. 
+      Context: Income ₹${analytics.totalIncome}, Expenses ₹${analytics.totalExpense}, Balance ₹${analytics.balance}. 
+      Recent Chat History:
+      ${historyContext}`;
+
+      // 3. Call the API
+      const aiResponseText = await callGeminiAPI(userMessage, systemPrompt);
+      
+      // 4. Update state with AI response
+      setMessages(prev => [...prev, { role: 'assistant', text: aiResponseText }]);
+    } catch (error) {
+      console.error("AI Error:", error);
+      setMessages(prev => [...prev, { role: 'assistant', text: "I'm having trouble connecting to my brain. Check your API key or connection!" }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleClearChat = () => {
+    if (window.confirm("Are you sure you want to delete all messages?")) {
+      const welcomeMsg = [{ 
+        role: 'assistant', 
+        text: `Chat cleared! How can I help you now, ${profile?.name}?` 
+      }];
+      setMessages(welcomeMsg);
+      localStorage.removeItem('neofin-ai-chats');
+    }
   };
 
   const suggestedPrompts = [`Analyze my spends`, "Am I saving enough?", "How to start a ₹500 SIP?"];
