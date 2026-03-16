@@ -217,7 +217,6 @@ export default function App() {
         await setDoc(profileRef, { name: name.trim(), joinedAt: new Date().toISOString() });
         await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
         for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
-        for (const t of MOCK_TRANSACTIONS) { await setDoc(doc(db, baseRef, 'transactions', t.id), t); }
       }
       // If the profile DOES exist, it skips the block above and does nothing to your data!
       
