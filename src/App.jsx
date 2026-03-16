@@ -78,7 +78,7 @@ const autoCategorize = (description) => {
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
   // Hardcoding for immediate testing on your ASUS!
-  const apiKey = "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"; 
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY; 
   
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
