@@ -77,44 +77,25 @@ const autoCategorize = (description) => {
 
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
+  // 🚨 THE NUCLEAR OPTION 🚨
+  // Paste your actual key inside these quotes for testing!
+  const apiKey = "AIzaSyCsQEjvnsrxwnijsA5FFEgIaAVQ2mSqJrU"; 
   
-  // 1. Strict safety check for the API key
-  if (!apiKey || apiKey === 'undefined') {
-    return "Setup Error: VITE_GEMINI_API_KEY is missing! Please add it to Vercel and click REDEPLOY.";
-  }
-
-  // 2. Using the exact, verified Gemini 1.5 Flash endpoint
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // Using v1beta and 1.5-flash because it is the most stable free-tier endpoint
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
-  const payload = { 
-    contents: [{ role: "user", parts: [{ text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }] }] 
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }
+        ]
+      }
+    ]
   };
-  
-  try {
-    const response = await fetch(url, { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(payload) 
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      console.error("Gemini API Error details:", data);
-      return `AI Error (${response.status}): ${data.error?.message || "Check API Key and Model Name"}`;
-    }
-    
-    if (data.candidates && data.candidates[0].content) {
-      return data.candidates[0].content.parts[0].text;
-    }
-    
-    return "I couldn't generate a specific response. Try rephrasing.";
-  } catch (error) { 
-    console.error("Fetch error:", error);
-    return "Network error. Please check your internet connection."; 
-  }
-};
+
+  // ... (keep the rest of the try/catch block exactly the same)
 
 
 // ==========================================
