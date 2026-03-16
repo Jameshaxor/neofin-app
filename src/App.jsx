@@ -100,8 +100,7 @@ export default function App() {
   const [isInitializingAccount, setIsInitializingAccount] = useState(false);
 
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('neofin-theme') === 'dark');
-
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('neofin-theme') !== 'light');
   useEffect(() => {
     if (darkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('neofin-theme', 'dark'); } 
     else { document.documentElement.classList.remove('dark'); localStorage.setItem('neofin-theme', 'light'); }
