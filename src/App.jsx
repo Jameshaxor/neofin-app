@@ -160,7 +160,7 @@ export default function App() {
       if (!t.date || !t.amount) return;
       const tMonthKey = t.date.substring(0, 7); 
       const tDateObj = new Date(t.date);
-      const monthLabel = tDateObj.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+      const monthLabel = tDateObj.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 
       if (!monthlyDataMap[tMonthKey]) monthlyDataMap[tMonthKey] = { name: monthLabel, income: 0, expense: 0, key: tMonthKey };
       if (t.type === 'income') monthlyDataMap[tMonthKey].income += t.amount;
