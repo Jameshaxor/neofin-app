@@ -87,54 +87,49 @@ const autoCategorize = (description) => {
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
   
-  // Use the universal stable v1beta endpoint and the standard gemini-1.5-flash model
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // Use v1 instead of v1beta and the fully qualified model name
+  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   const payload = {
     contents: [
       {
         role: "user",
         parts: [
-          { text: `System Context: ${systemInstruction}\n\nUser Message: ${prompt}` }
+          { text: `${systemInstruction}\n\nUser Question: ${prompt}` }
         ]
       }
     ],
     generationConfig: {
       temperature: 0.7,
-      topK: 40,
-      topP: 0.95,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 800,
     }
   };
 
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Gemini API Error Details:", errorData);
-      // This will show you exactly why it's failing in the UI
-      return `AI Error (${response.status}): ${errorData.error?.message || "Invalid Request"}`;
+      console.error("Gemini API Error:", data);
+      return `AI Error: ${data.error?.message || "Check your API key or model availability."}`;
     }
 
-    const data = await response.json();
-    
     if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
       return data.candidates[0].content.parts[0].text;
     } else {
-      return "I processed the data but couldn't formulate a response. Please try rephrasing.";
+      return "I processed the request but couldn't generate a text response. Try asking something else!";
     }
   } catch (error) {
     console.error("Network Exception:", error);
-    return "Network error. Please check if your VITE_GEMINI_API_KEY is correct in Vercel and that you have internet access.";
+    return "Network error. Please check your internet connection.";
   }
 };
+
 
 // ==========================================
 // MAIN APPLICATION COMPONENT
