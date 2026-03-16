@@ -95,8 +95,6 @@ const callGeminiAPI = async (prompt, systemInstruction) => {
     ]
   };
 
-  // ... (keep the rest of the try/catch block exactly the same)
-
 
 // ==========================================
 // MAIN APPLICATION COMPONENT
