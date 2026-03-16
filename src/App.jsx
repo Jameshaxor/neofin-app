@@ -890,31 +890,38 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
   const handleSendAiMessage = async (text) => {
     if (!text.trim() || isAiLoading) return;
 
-    // 1. Show user message instantly
     const userMsg = { role: 'user', text };
     setAiMessages(prev => [...prev, userMsg]);
     setAiInput('');
     setIsAiLoading(true);
 
     try {
-      // 2. TRIGGER WORD CHECK: Does the user want live market data?
+      // 1. LIVE WEB SEARCH (Tavily)
       const keywords = ["market", "nifty", "stock", "price", "sensex", "gold", "today", "news"];
       const needsSearch = keywords.some(word => text.toLowerCase().includes(word));
-      
-      let liveWebData = "No live data needed for this query.";
-
+      let liveWebData = "No live web data needed.";
       if (needsSearch) {
-        // Pauses to search the internet first!
         liveWebData = await searchWeb(text); 
       }
 
-      // 3. Prepare the AI's Brain (Memory + Live Data)
+      // 2. LIVE DATABASE INJECTION (The Blindfold comes off!)
+      // We take your actual app state 'transactions' and turn it into text
+      const financialData = transactions && transactions.length > 0 
+        ? transactions.map(t => `- ${t.type.toUpperCase()}: ₹${t.amount} on ${t.category} (${t.title || 'No note'})`).join('\n')
+        : "The user has no transactions logged yet.";
+
+      // 3. CHAT MEMORY
       const historyContext = aiMessages.slice(-4)
         .map(m => `${m.role === 'ai' ? 'Assistant' : 'User'}: ${m.text}`)
         .join('\n');
 
-      const systemPrompt = `You are NeoFin AI, an expert Indian wealth manager. 
-      You have access to the following real-time web search data. If it is relevant to the user's question, use it to give an accurate, up-to-date answer. Do not mention that you did a web search, just provide the answer naturally.
+      // 4. THE ULTIMATE SYSTEM PROMPT
+      const systemPrompt = `You are NeoFin AI, an expert Indian wealth manager.
+      You have direct access to the user's live financial data. Use it to give highly personalized, accurate advice.
+      Do not ask them for their income or expenses—you can already see them below.
+
+      USER'S LIVE TRANSACTION DATA:
+      ${financialData}
       
       REAL-TIME INTERNET DATA:
       ${liveWebData}
@@ -922,14 +929,13 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
       CONVERSATION HISTORY:
       ${historyContext}`;
 
-      // 4. Send everything to Groq
+      // 5. Send to Groq
       const response = await callGeminiAPI(text, systemPrompt);
       
-      // 5. Show the AI's answer on screen
       setAiMessages(prev => [...prev, { role: 'ai', text: response }]);
     } catch (error) {
       console.error("AI Error:", error);
-      setAiMessages(prev => [...prev, { role: 'ai', text: "My internet connection dropped. Ask me again?" }]);
+      setAiMessages(prev => [...prev, { role: 'ai', text: "My connection dropped. Ask me again?" }]);
     } finally {
       setIsAiLoading(false);
     }
