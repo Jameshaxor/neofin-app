@@ -916,9 +916,14 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
         .join('\n');
 
       // 4. THE ULTIMATE SYSTEM PROMPT
-      const systemPrompt = `You are NeoFin AI, an expert Indian wealth manager.
+      const systemPrompt = `You are NeoFin AI, an elite Indian wealth manager and financial strategist.
       You have direct access to the user's live financial data. Use it to give highly personalized, accurate advice.
-      Do not ask them for their income or expenses—you can already see them below.
+      
+      TONE & STYLE RULES:
+      1. Be sharp, concise, and highly professional. Speak like a top-tier fintech advisor.
+      2. NEVER explain basic arithmetic step-by-step. Do not say "I will subtract X from Y." Just give the final numbers confidently.
+      3. Treat the user like a serious investor, not a child.
+      4. Always pivot from just giving the number to offering a smart, actionable financial insight (e.g., SIPs, market opportunities, saving strategies).
 
       USER'S LIVE TRANSACTION DATA:
       ${financialData}
@@ -928,7 +933,6 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
       
       CONVERSATION HISTORY:
       ${historyContext}`;
-
       // 5. Send to Groq
       const response = await callGeminiAPI(text, systemPrompt);
       
