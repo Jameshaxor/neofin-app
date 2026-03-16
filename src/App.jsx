@@ -847,36 +847,36 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
     localStorage.setItem('neofin-ai-chats', JSON.stringify(messages));
   }, [messages]);
 
-  const handleSend = async (textPrompt) => {
-    const userMessage = typeof textPrompt === 'string' ? textPrompt.trim() : input.trim();
-    if (!userMessage || loading) return;
+  const handleSendAiMessage = async (text) => {
+    // 1. Prevent accidental double-clicks or empty messages
+    if (!text.trim() || isAiLoading) return;
 
-    // 1. Clear input and add user message immediately
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
-    setLoading(true);
+    // 2. Add user message to UI immediately
+    const userMsg = { role: 'user', text };
+    setAiMessages(prev => [...prev, userMsg]);
+    setAiInput('');
+    setIsAiLoading(true);
 
     try {
-      // 2. Short-Term Memory: Grab last 3 messages so AI follows the conversation
-      const historyContext = messages.slice(-3)
-        .map(m => `${m.role === 'assistant' ? 'AI' : 'User'}: ${m.text}`)
+      // 3. Prepare "Context" so AI remembers the previous 4 messages
+      const historyContext = aiMessages.slice(-4)
+        .map(m => `${m.role === 'ai' ? 'Assistant' : 'User'}: ${m.text}`)
         .join('\n');
 
-      const systemPrompt = `You are a friendly personal finance advisor for a young Indian adult named ${profile?.name}. 
-      Context: Income ₹${analytics.totalIncome}, Expenses ₹${analytics.totalExpense}, Balance ₹${analytics.balance}. 
-      Recent Chat History:
+      const systemPrompt = `You are NeoFin AI, a helpful wealth manager.
+      Conversation History for context:
       ${historyContext}`;
 
-      // 3. Call the API
-      const aiResponseText = await callGeminiAPI(userMessage, systemPrompt);
+      // 4. Call the API (using the Groq logic we set up)
+      const response = await callGeminiAPI(text, systemPrompt);
       
-      // 4. Update state with AI response
-      setMessages(prev => [...prev, { role: 'assistant', text: aiResponseText }]);
+      // 5. Add AI response using the safe functional update to prevent crashes
+      setAiMessages(prev => [...prev, { role: 'ai', text: response }]);
     } catch (error) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: 'assistant', text: "I'm having trouble connecting to my brain. Check your API key or connection!" }]);
+      setAiMessages(prev => [...prev, { role: 'ai', text: "The connection flickered. Try sending that again?" }]);
     } finally {
-      setLoading(false);
+      setIsAiLoading(false);
     }
   };
   const handleClearChat = () => {
