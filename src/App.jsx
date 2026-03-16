@@ -87,22 +87,19 @@ const autoCategorize = (description) => {
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
   
-  // Use v1 instead of v1beta and the fully qualified model name
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // 1. Switched back to v1beta which supports the newest models
+  // 2. Updated model to gemini-2.0-flash
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
   const payload = {
     contents: [
       {
         role: "user",
         parts: [
-          { text: `${systemInstruction}\n\nUser Question: ${prompt}` }
+          { text: `System Instructions: ${systemInstruction}\n\nUser Question: ${prompt}` }
         ]
       }
-    ],
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 800,
-    }
+    ]
   };
 
   try {
@@ -116,17 +113,18 @@ const callGeminiAPI = async (prompt, systemInstruction) => {
 
     if (!response.ok) {
       console.error("Gemini API Error:", data);
-      return `AI Error: ${data.error?.message || "Check your API key or model availability."}`;
+      // If 2.0 is not available, this fallback message helps us debug
+      return `AI Error (${response.status}): ${data.error?.message || "Check API Key"}`;
     }
 
     if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
       return data.candidates[0].content.parts[0].text;
     } else {
-      return "I processed the request but couldn't generate a text response. Try asking something else!";
+      return "I received your data but couldn't generate a specific response. Try rephrasing your question.";
     }
   } catch (error) {
     console.error("Network Exception:", error);
-    return "Network error. Please check your internet connection.";
+    return "Network error. Please check your internet and Vercel settings.";
   }
 };
 
