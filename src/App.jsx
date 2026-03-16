@@ -87,8 +87,6 @@ const autoCategorize = (description) => {
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
   
-  // 1. Switched back to v1beta which supports the newest models
-  // 2. Updated model to gemini-2.0-flash
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
   const payload = {
@@ -113,7 +111,6 @@ const callGeminiAPI = async (prompt, systemInstruction) => {
 
     if (!response.ok) {
       console.error("Gemini API Error:", data);
-      // If 2.0 is not available, this fallback message helps us debug
       return `AI Error (${response.status}): ${data.error?.message || "Check API Key"}`;
     }
 
@@ -140,44 +137,28 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(() => {
-  return localStorage.getItem('neofin-theme') === 'dark';
-});
+    return localStorage.getItem('neofin-theme') === 'dark';
+  });
 
-useEffect(() => {
-  if (darkMode) {
-    document.documentElement.classList.add('dark');
-    localStorage.setItem('neofin-theme', 'dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-    localStorage.setItem('neofin-theme', 'light');
-  }
-}, [darkMode]);
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('neofin-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('neofin-theme', 'light');
+    }
+  }, [darkMode]);
 
-  
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState({});
   const [goals, setGoals] = useState([]);
   
   const [selectedMonth, setSelectedMonth] = useState(getMonthYearString(new Date()));
 
+  // THIS IS THE FIX: Only one clean Auth check!
   useEffect(() => {
     const auth = getAuth();
-    
-    // This actively listens for your Google Sign-In to finish
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // Success! Google let you in. Stop the loading spinner.
-        setAuthLoading(false);
-      } else {
-        // Nobody is logged in yet. Stop the spinner so they can click the Google button.
-        setAuthLoading(false);
-      }
-    });
-
-    // Cleanup the listener when the app closes
-    return () => unsubscribe();
-  }, []);
-
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthLoading(false);
@@ -287,7 +268,7 @@ useEffect(() => {
   };
 
   if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
   }
 
   if (profile === false) {
@@ -443,18 +424,14 @@ function OnboardingScreen({ onComplete, isLoading }) {
       const auth = getAuth();
       const provider = new GoogleAuthProvider();
       
-      // Trigger the secure Google login popup
       const result = await signInWithPopup(auth, provider);
       
-      // Extract the user's real first name from their Google account
       const fullName = result.user.displayName || "there";
       const firstName = fullName.split(' ')[0];
       setDisplayName(firstName);
       
-      // Show the professional greeting
       setIsGreeting(true);
 
-      // Wait 2 seconds, then securely load the dashboard
       setTimeout(() => {
         onComplete(firstName);
       }, 2000);
@@ -465,7 +442,6 @@ function OnboardingScreen({ onComplete, isLoading }) {
     }
   };
 
-  // The Professional Greeting Screen
   if (isGreeting || isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 transition-colors duration-200">
@@ -478,7 +454,6 @@ function OnboardingScreen({ onComplete, isLoading }) {
     );
   }
 
-  // The Google Sign-In Screen
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 transition-colors duration-200">
       <div className="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 animate-fade-in text-center relative overflow-hidden">
@@ -1122,4 +1097,3 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
     </div>
   );
 }
-
