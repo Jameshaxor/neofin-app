@@ -12,10 +12,8 @@ import {
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "firebase/firestore";
 
 // --- FIREBASE INITIALIZATION (Using Vercel Environment Variables) ---
