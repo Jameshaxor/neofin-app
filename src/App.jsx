@@ -61,14 +61,17 @@ const getMonthYearString = (dateObj) => {
 
 const autoCategorize = (description) => {
   const desc = (description || '').toLowerCase();
+  
   if (desc.match(/zerodha|groww|upstox|angelone|indmoney|sip|mutual fund|stock/)) return 'Investing';
-  if (desc.match(/course|udemy|coursera|books|fees|college/)) return 'Education';
-  if (desc.match(/uber|ola|rapido|metro|irctc|redbus|bus|train|petrol/)) return 'Transport';
-  if (desc.match(/cafe|mess|food|grocery|restaurant|swiggy|zomato|zepto/)) return 'Food';
-  if (desc.match(/netflix|spotify|movie|bookmyshow|hotstar|prime/)) return 'Entertainment';
+  if (desc.match(/course|udemy|coursera|books|fees|college|tuition/)) return 'Education';
+  if (desc.match(/uber|ola|rapido|metro|irctc|redbus|bus|train|petrol|fuel/)) return 'Transport';
+  if (desc.match(/cafe|mess|food|grocery|restaurant|swiggy|zomato|zepto|blinkit/)) return 'Food';
+  // Added variations of jiohotstar, jiocinema, and common typos!
+  if (desc.match(/netflix|spotify|movie|bookmyshow|hotstar|hostar|prime|jiocinema|jiohotstar|subscription/)) return 'Entertainment';
   if (desc.match(/amazon|flipkart|myntra|ajio|cloth|shoe/)) return 'Shopping';
-  if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|jio/)) return 'Housing';
-  if (desc.match(/allowance|stipend|freelance|internship|dad|mom|salary/)) return 'Income';
+  // Made Housing strictly look for wifi/recharge keywords instead of just 'jio'
+  if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|broadband|recharge|jio fiber/)) return 'Housing';
+  
   return 'Other';
 };
 
@@ -559,13 +562,28 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
   const handleAddTransaction = async (e) => {
     e.preventDefault();
     if (!user || !formData.amount || !formData.description) return;
+    
     let finalCategory = formData.category;
-    if (finalCategory === 'Other' && formData.type === 'expense') finalCategory = autoCategorize(formData.description);
+    
+    // SMART FIX: Handle Income vs Expense properly
+    if (finalCategory === 'Other') {
+      if (formData.type === 'income') {
+        finalCategory = 'Income';
+      } else {
+        finalCategory = autoCategorize(formData.description);
+      }
+    }
 
     const newId = Date.now().toString();
     try {
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', newId), { id: newId, ...formData, amount: parseFloat(formData.amount), category: finalCategory });
-      setShowAddForm(false); setFormData({ type: 'expense', amount: '', date: new Date().toISOString().split('T')[0], description: '', category: 'Other' });
+      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', newId), { 
+        id: newId, 
+        ...formData, 
+        amount: parseFloat(formData.amount), 
+        category: finalCategory 
+      });
+      setShowAddForm(false); 
+      setFormData({ type: 'expense', amount: '', date: new Date().toISOString().split('T')[0], description: '', category: 'Other' });
     } catch (e) { console.error("Error adding:", e); }
   };
 
