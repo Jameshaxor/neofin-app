@@ -77,35 +77,39 @@ const autoCategorize = (description) => {
 
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
-  // Back to using your secure Vercel environment variable!
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-  
-  // Pointing to the modern 2.0 model
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-  
-  const payload = { 
-    contents: [
-      { role: "user", parts: [{ text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }] }
-    ] 
-  };
+  // Hardcoding for immediate testing on your ASUS!
+  const apiKey = "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"; 
   
   try {
-    const response = await fetch(url, { 
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(payload) 
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile", 
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.7
+      })
     });
+
     const data = await response.json();
     
-    if (!response.ok) return `AI Error (${response.status}): ${data.error?.message || "Check API Key"}`;
-    if (data.candidates && data.candidates[0].content) return data.candidates[0].content.parts[0].text;
+    if (data.error) {
+       console.error("Groq API Error:", data.error);
+       return `AI Error: ${data.error.message}`;
+    }
     
-    return "I couldn't generate a specific response. Try rephrasing.";
-  } catch (error) { 
-    return "Network error. Please check your internet connection and API Key."; 
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error("Network Error:", error);
+    return "The AI Advisor is currently offline. Check your connection!";
   }
 };
-
 
 // ==========================================
 // MAIN APPLICATION COMPONENT
