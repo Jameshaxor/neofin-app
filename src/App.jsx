@@ -8,7 +8,7 @@ import {
   Sparkles, Moon, Sun, Plus, Search, Download, 
   Trash2, AlertCircle, ArrowUpRight, ArrowDownRight, 
   Wallet, Send, Bot, User, CheckCircle,
-  TrendingUp, Compass, Calendar, ChevronDown, Loader2
+  TrendingUp, Compass, Calendar, ChevronDown, Loader2, LogOut
 } from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
@@ -297,9 +297,13 @@ export default function App() {
               <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
-              <button onClick={handleLogout} className="md:hidden p-2 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-800/50 transition-colors">
-                <User className="w-5 h-5" />
-              </button>
+              <button 
+    onClick={() => { if(window.confirm('Are you sure you want to sign out?')) handleLogout(); }} 
+    className="md:hidden p-2 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-800/50 transition-colors"
+    title="Sign Out"
+  >
+    <LogOut className="w-5 h-5" />
+  </button>
             </div>
           </header>
 
