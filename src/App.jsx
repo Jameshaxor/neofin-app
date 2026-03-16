@@ -206,20 +206,17 @@ export default function App() {
     if (!currentUser) return;
     
     const baseRef = `artifacts/${appId}/users/${currentUser.uid}`;
-    const profileRef = doc(db, baseRef, 'profile', 'data');
     
     try {
-      // SMART FIX: Check if the user already exists before doing anything!
-      const profileSnap = await getDoc(profileRef);
+      // 1. Check if the user already exists in the database
+      const profileSnap = await getDoc(doc(db, baseRef, 'profile', 'data'));
       
+      // 2. ONLY inject data if this is a brand new account
       if (!profileSnap.exists()) {
-        // This is a brand new user! Give them the starter pack.
-        await setDoc(profileRef, { name: name.trim(), joinedAt: new Date().toISOString() });
+        await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
         await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
-        for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
+        // Notice: The Mock Data injection line is completely gone!
       }
-      // If the profile DOES exist, it skips the block above and does nothing to your data!
-      
     } catch (e) { 
       console.error("Failed to setup profile:", e); 
     } finally { 
