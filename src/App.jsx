@@ -13,10 +13,10 @@ import {
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "firebase/firestore";
 
-// --- FIREBASE INITIALIZATION (Using Vercel Environment Variables) ---
+// --- FIREBASE INITIALIZATION ---
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -38,21 +38,10 @@ const MOCK_TRANSACTIONS = [
   { id: '3', date: '2026-03-08', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent & Utilities' },
   { id: '4', date: '2026-03-12', amount: 1000, type: 'expense', category: 'Investing', description: 'Groww SIP (Nifty 50)' },
   { id: '5', date: '2026-03-15', amount: 450, type: 'expense', category: 'Food', description: 'Local Cafe' },
-  { id: '6', date: '2026-02-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
-  { id: '7', date: '2026-02-05', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent & Utilities' },
-  { id: '8', date: '2026-02-15', amount: 1200, type: 'expense', category: 'Food', description: 'Zomato Orders' },
 ];
 
-const INITIAL_BUDGETS = {
-  Housing: 9000, Food: 3500, Transport: 2000, 
-  Investing: 3000, Education: 1500, Entertainment: 1500
-};
-
-const INITIAL_GOALS = [
-  { id: 'g1', name: 'Emergency Fund', target: 50000, current: 15000, color: '#10b981' },
-  { id: 'g2', name: 'Goa Trip', target: 15000, current: 4000, color: '#f59e0b' }
-];
-
+const INITIAL_BUDGETS = { Housing: 9000, Food: 3500, Transport: 2000, Investing: 3000, Education: 1500, Entertainment: 1500 };
+const INITIAL_GOALS = [{ id: 'g1', name: 'Emergency Fund', target: 50000, current: 15000, color: '#10b981' }];
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#14b8a6', '#f43f5e'];
 
 // --- UTILITY FUNCTIONS ---
@@ -72,57 +61,29 @@ const getMonthYearString = (dateObj) => {
 
 const autoCategorize = (description) => {
   const desc = (description || '').toLowerCase();
-  if (desc.match(/zerodha|groww|upstox|angelone|indmoney|sip|mutual fund|stock|share|ipo/)) return 'Investing';
-  if (desc.match(/course|udemy|coursera|books|stationary|fees|college/)) return 'Education';
+  if (desc.match(/zerodha|groww|upstox|angelone|indmoney|sip|mutual fund|stock/)) return 'Investing';
+  if (desc.match(/course|udemy|coursera|books|fees|college/)) return 'Education';
   if (desc.match(/uber|ola|rapido|metro|irctc|redbus|bus|train|petrol/)) return 'Transport';
-  if (desc.match(/cafe|mess|food|grocery|restaurant|swiggy|zomato|zepto|blinkit|chai/)) return 'Food';
+  if (desc.match(/cafe|mess|food|grocery|restaurant|swiggy|zomato|zepto/)) return 'Food';
   if (desc.match(/netflix|spotify|movie|bookmyshow|hotstar|prime/)) return 'Entertainment';
   if (desc.match(/amazon|flipkart|myntra|ajio|cloth|shoe/)) return 'Shopping';
-  if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|jio|airtel/)) return 'Housing';
-  if (desc.match(/allowance|stipend|freelance|internship|dad|mom|salary|income/)) return 'Income';
+  if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|jio/)) return 'Housing';
+  if (desc.match(/allowance|stipend|freelance|internship|dad|mom|salary/)) return 'Income';
   return 'Other';
 };
 
-// --- GEMINI API INTEGRATION (Using Vercel Environment Variables) ---
+// --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-  
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-  
-  const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: `System Instructions: ${systemInstruction}\n\nUser Question: ${prompt}` }
-        ]
-      }
-    ]
-  };
-
+  const payload = { contents: [{ role: "user", parts: [{ text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }] }] };
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await response.json();
-
-    if (!response.ok) {
-      console.error("Gemini API Error:", data);
-      return `AI Error (${response.status}): ${data.error?.message || "Check API Key"}`;
-    }
-
-    if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
-      return data.candidates[0].content.parts[0].text;
-    } else {
-      return "I received your data but couldn't generate a specific response. Try rephrasing your question.";
-    }
-  } catch (error) {
-    console.error("Network Exception:", error);
-    return "Network error. Please check your internet and Vercel settings.";
-  }
+    if (!response.ok) return `AI Error (${response.status}): ${data.error?.message || "Check API Key"}`;
+    if (data.candidates && data.candidates[0].content) return data.candidates[0].content.parts[0].text;
+    return "I couldn't generate a specific response. Try rephrasing.";
+  } catch (error) { return "Network error. Please check your internet connection."; }
 };
 
 
@@ -136,29 +97,20 @@ export default function App() {
   const [isInitializingAccount, setIsInitializingAccount] = useState(false);
 
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('neofin-theme') === 'dark';
-  });
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('neofin-theme') === 'dark');
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('neofin-theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('neofin-theme', 'light');
-    }
+    if (darkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('neofin-theme', 'dark'); } 
+    else { document.documentElement.classList.remove('dark'); localStorage.setItem('neofin-theme', 'light'); }
   }, [darkMode]);
 
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState({});
   const [goals, setGoals] = useState([]);
-  
   const [selectedMonth, setSelectedMonth] = useState(getMonthYearString(new Date()));
 
-  // THIS IS THE FIX: Only one clean Auth check!
+  // 1. CLEAN AUTH LISTENER
   useEffect(() => {
-    const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthLoading(false);
@@ -166,50 +118,38 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // 2. DATA FETCHING
   useEffect(() => {
     if (!user) return;
-
     const baseRef = `artifacts/${appId}/users/${user.uid}`;
 
     const unsubProfile = onSnapshot(doc(db, baseRef, 'profile', 'data'), (docSnap) => {
-      if (docSnap.exists()) {
-        setProfile(docSnap.data());
-      } else {
-        setProfile(false); 
-      }
-    }, (err) => console.error(err));
-
+      if (docSnap.exists()) setProfile(docSnap.data());
+      else setProfile(false); 
+    });
     const unsubTx = onSnapshot(collection(db, baseRef, 'transactions'), (snapshot) => {
       setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.error(err));
-
+    });
     const unsubBudgets = onSnapshot(doc(db, baseRef, 'budgets', 'data'), (docSnap) => {
       if (docSnap.exists()) setBudgets(docSnap.data());
-    }, (err) => console.error(err));
-
+    });
     const unsubGoals = onSnapshot(collection(db, baseRef, 'goals'), (snapshot) => {
       setGoals(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => console.error(err));
+    });
 
     return () => { unsubProfile(); unsubTx(); unsubBudgets(); unsubGoals(); };
   }, [user]);
 
   const availableMonths = useMemo(() => {
     const months = new Set();
-    transactions.forEach(t => {
-      if(t.date) months.add(t.date.substring(0, 7)); 
-    });
+    transactions.forEach(t => { if(t.date) months.add(t.date.substring(0, 7)); });
     months.add(getMonthYearString(new Date())); 
     return Array.from(months).sort((a, b) => b.localeCompare(a)); 
   }, [transactions]);
 
   const analytics = useMemo(() => {
-    let totalIncome = 0;
-    let totalExpense = 0;
-    let totalInvestedMonth = 0;
-    const categoryTotals = {};
-    const monthlyDataMap = {};
-    const currentMonthExpenses = {};
+    let totalIncome = 0; let totalExpense = 0; let totalInvestedMonth = 0;
+    const categoryTotals = {}; const monthlyDataMap = {}; const currentMonthExpenses = {};
 
     const sortedTx = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -219,16 +159,13 @@ export default function App() {
       const tDateObj = new Date(t.date);
       const monthLabel = tDateObj.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
 
-      if (!monthlyDataMap[tMonthKey]) {
-        monthlyDataMap[tMonthKey] = { name: monthLabel, income: 0, expense: 0, key: tMonthKey };
-      }
+      if (!monthlyDataMap[tMonthKey]) monthlyDataMap[tMonthKey] = { name: monthLabel, income: 0, expense: 0, key: tMonthKey };
       if (t.type === 'income') monthlyDataMap[tMonthKey].income += t.amount;
       else monthlyDataMap[tMonthKey].expense += t.amount;
 
       if (selectedMonth === 'all' || selectedMonth === tMonthKey) {
-        if (t.type === 'income') {
-          totalIncome += t.amount;
-        } else {
+        if (t.type === 'income') totalIncome += t.amount;
+        else {
           totalExpense += t.amount;
           currentMonthExpenses[t.category] = (currentMonthExpenses[t.category] || 0) + t.amount;
           categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
@@ -239,42 +176,44 @@ export default function App() {
 
     const balance = totalIncome - totalExpense;
     const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
+    const pieData = Object.keys(categoryTotals).map(key => ({ name: key, value: categoryTotals[key] })).sort((a, b) => b.value - a.value);
 
-    const pieData = Object.keys(categoryTotals).map(key => ({
-      name: key, value: categoryTotals[key]
-    })).sort((a, b) => b.value - a.value);
-
-    const monthlyTrendData = Object.values(monthlyDataMap);
-
-    return {
-      totalIncome, totalExpense, balance, savingsRate, totalInvestedMonth,
-      pieData, monthlyTrendData, currentMonthExpenses
-    };
+    return { totalIncome, totalExpense, balance, savingsRate, totalInvestedMonth, pieData, monthlyTrendData: Object.values(monthlyDataMap), currentMonthExpenses };
   }, [transactions, selectedMonth]);
 
+  // 3. SECURE PROFILE CREATION
   const handleCreateProfile = async (name) => {
-    if (!user || !name.trim()) return;
-    setIsInitializingAccount(true);
-    const baseRef = `artifacts/${appId}/users/${user.uid}`;
+    if (!name.trim()) return;
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
     
+    const baseRef = `artifacts/${appId}/users/${currentUser.uid}`;
     try {
       await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
       await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
       for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
       for (const t of MOCK_TRANSACTIONS) { await setDoc(doc(db, baseRef, 'transactions', t.id), t); }
-    } catch (e) {
-      console.error("Failed to setup profile:", e);
-    }
+    } catch (e) { console.error("Failed to setup profile:", e); } 
+    finally { setIsInitializingAccount(false); }
   };
 
-  if (authLoading) {
+  const handleLogout = () => { signOut(auth); };
+
+  // =========================================================
+  // THE NEW, BULLETPROOF "TRAFFIC COP" ROUTING LOGIC
+  // =========================================================
+  
+  // A. Still checking Firebase connection...
+  if (authLoading || (user && profile === null && !isInitializingAccount)) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
   }
 
-  if (profile === false) {
-    return <OnboardingScreen onComplete={handleCreateProfile} isLoading={isInitializingAccount} />;
+  // B. Not logged in, OR no profile data exists, OR currently creating account -> Lock them on Welcome Screen
+  if (!user || profile === false || isInitializingAccount) {
+    return <OnboardingScreen onComplete={handleCreateProfile} onLoginStart={() => setIsInitializingAccount(true)} isLoading={isInitializingAccount} />;
   }
 
+  // C. Fully Logged in & Data Loaded -> Let them into the Dashboard!
   const themeClass = darkMode ? 'dark' : '';
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
@@ -292,9 +231,7 @@ export default function App() {
         <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 fixed h-full z-40">
           <div className="flex items-center justify-between p-6">
             <div className="flex items-center space-x-3 text-blue-600 dark:text-blue-500">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Compass className="w-6 h-6" />
-              </div>
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><Compass className="w-6 h-6" /></div>
               <span className="text-xl font-bold tracking-tight">NeoFin</span>
             </div>
           </div>
@@ -306,7 +243,7 @@ export default function App() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold truncate text-gray-900 dark:text-white">Hi, {profile?.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Wealth Tracker</p>
+                <button onClick={handleLogout} className="text-xs text-rose-500 hover:text-rose-600 font-medium">Sign Out</button>
               </div>
             </div>
           </div>
@@ -314,12 +251,9 @@ export default function App() {
           <nav className="px-4 py-2 space-y-1 flex-1">
             {navItems.map((item) => (
               <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                key={item.id} onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                  activeTab === item.id 
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-100'
+                  activeTab === item.id ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-100'
                 }`}
               >
                 <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-white' : ''}`} />
@@ -331,7 +265,6 @@ export default function App() {
 
         {/* MAIN CONTENT AREA */}
         <main className="flex-1 flex flex-col min-w-0 md:ml-64 relative">
-          
           <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 md:px-6 py-4 flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white capitalize hidden md:block">
@@ -346,8 +279,7 @@ export default function App() {
             <div className="flex items-center space-x-3">
               <div className="relative group">
                 <select 
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
                   className="appearance-none bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 py-1.5 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
                   <option value="all">All Time</option>
@@ -359,12 +291,11 @@ export default function App() {
                 </select>
                 <ChevronDown className="w-4 h-4 text-gray-500 absolute right-2.5 top-1/2 transform -translate-y-1/2 pointer-events-none" />
               </div>
-
-              <button 
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
+              <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+              <button onClick={handleLogout} className="md:hidden p-2 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-800/50 transition-colors">
+                <User className="w-5 h-5" />
               </button>
             </div>
           </header>
@@ -384,8 +315,7 @@ export default function App() {
               const isActive = activeTab === item.id;
               return (
                 <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  key={item.id} onClick={() => setActiveTab(item.id)}
                   className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
                     isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
                   }`}
@@ -415,27 +345,23 @@ export default function App() {
 // ==========================================
 // ONBOARDING SCREEN (Google Sign-In)
 // ==========================================
-function OnboardingScreen({ onComplete, isLoading }) {
+function OnboardingScreen({ onComplete, onLoginStart, isLoading }) {
   const [isGreeting, setIsGreeting] = useState(false);
   const [displayName, setDisplayName] = useState('');
 
   const handleGoogleLogin = async () => {
     try {
+      if (onLoginStart) onLoginStart(); // Tells the main app to lock the screen so we don't glitch out!
       const auth = getAuth();
       const provider = new GoogleAuthProvider();
       
       const result = await signInWithPopup(auth, provider);
-      
       const fullName = result.user.displayName || "there";
       const firstName = fullName.split(' ')[0];
       setDisplayName(firstName);
       
       setIsGreeting(true);
-
-      setTimeout(() => {
-        onComplete(firstName);
-      }, 2000);
-      
+      setTimeout(() => { onComplete(firstName); }, 2000);
     } catch (error) {
       console.error("Google Login Error:", error);
       alert("Sign in failed or was cancelled. Please try again.");
@@ -464,11 +390,7 @@ function OnboardingScreen({ onComplete, isLoading }) {
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">NeoFin Security</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Sign in to permanently sync your wealth data across all your devices.</p>
         
-        <button 
-          onClick={handleGoogleLogin}
-          disabled={isLoading}
-          className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-3"
-        >
+        <button onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-3">
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -481,8 +403,6 @@ function OnboardingScreen({ onComplete, isLoading }) {
     </div>
   );
 }
-
-
 
 // ==========================================
 // DASHBOARD VIEW
@@ -553,17 +473,8 @@ function DashboardView({ analytics, transactions, selectedMonth }) {
           <div className="flex-1 min-h-[220px] relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie
-                  data={analytics.pieData}
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {analytics.pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
+                <Pie data={analytics.pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
+                  {analytics.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                 </Pie>
                 <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ borderRadius: '10px' }} />
               </PieChart>
@@ -640,41 +551,27 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
   }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const handleExportCSV = () => {
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + "Date,Description,Category,Type,Amount\n"
-      + filteredData.map(e => `${e.date},"${e.description}",${e.category},${e.type},${e.amount}`).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `neofin_tx_${selectedMonth}.csv`);
+    const csvContent = "data:text/csv;charset=utf-8," + "Date,Description,Category,Type,Amount\n" + filteredData.map(e => `${e.date},"${e.description}",${e.category},${e.type},${e.amount}`).join("\n");
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `neofin_tx_${selectedMonth}.csv`);
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const handleAddTransaction = async (e) => {
     e.preventDefault();
     if (!user || !formData.amount || !formData.description) return;
-    
     let finalCategory = formData.category;
     if (finalCategory === 'Other' && formData.type === 'expense') finalCategory = autoCategorize(formData.description);
 
     const newId = Date.now().toString();
-    const newTx = {
-      id: newId, ...formData,
-      amount: parseFloat(formData.amount),
-      category: finalCategory
-    };
-
     try {
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', newId), newTx);
-      setShowAddForm(false);
-      setFormData({ type: 'expense', amount: '', date: new Date().toISOString().split('T')[0], description: '', category: 'Other' });
+      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', newId), { id: newId, ...formData, amount: parseFloat(formData.amount), category: finalCategory });
+      setShowAddForm(false); setFormData({ type: 'expense', amount: '', date: new Date().toISOString().split('T')[0], description: '', category: 'Other' });
     } catch (e) { console.error("Error adding:", e); }
   };
 
   const handleDelete = async (id) => {
     if(!user) return;
-    try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id)); } 
-    catch(e) { console.error("Delete error:", e); }
+    try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id)); } catch(e) {}
   };
 
   return (
@@ -683,19 +580,9 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
         <div className="flex flex-col sm:flex-row items-center w-full md:w-auto gap-2">
           <div className="relative w-full sm:w-64">
             <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder={`Search in ${selectedMonth === 'all' ? 'All Time' : selectedMonth}`} 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
-            />
+            <input type="text" placeholder={`Search...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm" />
           </div>
-          <select 
-            value={filterCategory} 
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm"
-          >
+          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full sm:w-auto px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm">
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -713,34 +600,15 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
       {showAddForm && (
         <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 animate-fade-in relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 bg-blue-500 h-full"></div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
-            <Receipt className="w-5 h-5 mr-2 text-blue-500" /> Record Entry
-          </h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><Receipt className="w-5 h-5 mr-2 text-blue-500" /> Record Entry</h3>
           <form onSubmit={handleAddTransaction} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</label>
-              <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm">
-                <option value="expense">Expense</option>
-                <option value="income">Income</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (₹)</label>
-              <input type="number" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0" className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" />
-            </div>
-            <div className="space-y-1 lg:col-span-2">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</label>
-              <input type="text" required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="e.g., Zomato, Rent, Groww SIP" className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</label>
-              <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" />
-            </div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">Type</label><select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm"><option value="expense">Expense</option><option value="income">Income</option></select></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">Amount (₹)</label><input type="number" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0" className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" /></div>
+            <div className="space-y-1 lg:col-span-2"><label className="text-xs font-semibold text-gray-500 uppercase">Description</label><input type="text" required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="e.g., Zomato, Rent" className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" /></div>
+            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">Date</label><input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" /></div>
             <div className="lg:col-span-5 flex justify-end space-x-3 mt-2">
                <button type="button" onClick={() => setShowAddForm(false)} className="px-4 md:px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">Cancel</button>
-               <button type="submit" className="px-4 md:px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md transition-colors flex items-center">
-                 Save <CheckCircle className="w-4 h-4 ml-2 hidden sm:block" />
-               </button>
+               <button type="submit" className="px-4 md:px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md transition-colors flex items-center">Save <CheckCircle className="w-4 h-4 ml-2 hidden sm:block" /></button>
             </div>
           </form>
         </div>
@@ -751,41 +619,19 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider border-b border-gray-200 dark:border-gray-800">
-                <th className="p-4 font-semibold">Details</th>
-                <th className="p-4 font-semibold hidden md:table-cell">Category</th>
-                <th className="p-4 font-semibold text-right">Amount</th>
-                <th className="p-4 font-semibold text-center w-16"></th>
+                <th className="p-4 font-semibold">Details</th><th className="p-4 font-semibold hidden md:table-cell">Category</th><th className="p-4 font-semibold text-right">Amount</th><th className="p-4 font-semibold text-center w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {filteredData.map(tx => (
                 <tr key={tx.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors group">
-                  <td className="p-4">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{tx.description}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(tx.date)} <span className="md:hidden">• {tx.category}</span></p>
-                  </td>
-                  <td className="p-4 hidden md:table-cell">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-medium 
-                      ${tx.category === 'Investing' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}
-                    `}>
-                      {tx.category}
-                    </span>
-                  </td>
-                  <td className={`p-4 text-sm font-bold text-right whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-gray-900 dark:text-white'}`}>
-                    {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
-                  </td>
-                  <td className="p-4 text-center">
-                    <button onClick={() => handleDelete(tx.id)} className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors md:opacity-0 md:group-hover:opacity-100">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+                  <td className="p-4"><p className="text-sm font-medium text-gray-900 dark:text-white">{tx.description}</p><p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(tx.date)} <span className="md:hidden">• {tx.category}</span></p></td>
+                  <td className="p-4 hidden md:table-cell"><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-medium ${tx.category === 'Investing' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>{tx.category}</span></td>
+                  <td className={`p-4 text-sm font-bold text-right whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-gray-900 dark:text-white'}`}>{tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}</td>
+                  <td className="p-4 text-center"><button onClick={() => handleDelete(tx.id)} className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors md:opacity-0 md:group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button></td>
                 </tr>
               ))}
-              {filteredData.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="p-8 text-center text-gray-500">No transactions found.</td>
-                </tr>
-              )}
+              {filteredData.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-gray-500">No transactions found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -800,68 +646,35 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
 function BudgetsView({ budgets, currentExpenses, db, user, appId, selectedMonth }) {
   const handleUpdateBudget = async (cat, val) => {
     if(!user) return;
-    const newBudgets = { ...budgets, [cat]: parseFloat(val) || 0 };
-    try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'budgets', 'data'), newBudgets); }
-    catch(e) { console.error("Budget update err:", e); }
+    try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'budgets', 'data'), { ...budgets, [cat]: parseFloat(val) || 0 }); } catch(e) {}
   };
-
-  const monthText = selectedMonth === 'all' ? 'All Time (Limits represent 1 month)' : `for ${selectedMonth}`;
 
   return (
     <div className="space-y-6 animate-fade-in mb-6 md:mb-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-2">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Budgets</h2>
-          <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-1">Showing spent {monthText}</p>
-        </div>
+        <div><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Budgets</h2><p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-1">Showing spent for {selectedMonth}</p></div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
         {Object.keys(budgets).map(category => {
-          const limit = budgets[category] || 0;
-          const spent = currentExpenses[category] || 0;
+          const limit = budgets[category] || 0; const spent = currentExpenses[category] || 0;
           const percentage = limit > 0 ? Math.min((spent / limit) * 100, 100) : (spent > 0 ? 100 : 0);
-          
-          let statusColor = "bg-emerald-500"; let textColor = "text-emerald-600 dark:text-emerald-400";
-          if (percentage > 75) { statusColor = "bg-amber-500"; textColor = "text-amber-600 dark:text-amber-400"; }
+          let statusColor = percentage > 75 ? "bg-amber-500" : "bg-emerald-500"; let textColor = percentage > 75 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
           if (percentage >= 100) { statusColor = "bg-rose-500"; textColor = "text-rose-600 dark:text-rose-400"; }
           if (category === 'Investing') { statusColor = "bg-purple-500"; textColor = "text-purple-600 dark:text-purple-400"; }
 
           return (
             <div key={category} className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
               <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-lg bg-gray-100 dark:bg-gray-700`}>
-                    {category === 'Investing' ? <TrendingUp className="w-5 h-5 text-gray-600 dark:text-gray-300" /> : <Activity className="w-5 h-5 text-gray-600 dark:text-gray-300" />}
-                  </div>
-                  <h3 className="font-bold text-gray-900 dark:text-white">{category}</h3>
-                </div>
-                <div className="text-right">
-                  <span className={`text-sm font-bold ${textColor}`}>{percentage.toFixed(0)}%</span>
-                  <p className="text-[10px] uppercase text-gray-500 tracking-wider">Used</p>
-                </div>
+                <div className="flex items-center space-x-3"><div className={`p-2 rounded-lg bg-gray-100 dark:bg-gray-700`}>{category === 'Investing' ? <TrendingUp className="w-5 h-5 text-gray-600 dark:text-gray-300" /> : <Activity className="w-5 h-5 text-gray-600 dark:text-gray-300" />}</div><h3 className="font-bold text-gray-900 dark:text-white">{category}</h3></div>
+                <div className="text-right"><span className={`text-sm font-bold ${textColor}`}>{percentage.toFixed(0)}%</span><p className="text-[10px] uppercase text-gray-500 tracking-wider">Used</p></div>
               </div>
-
-              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-4 overflow-hidden">
-                <div className={`h-full rounded-full ${statusColor} transition-all duration-500`} style={{ width: `${percentage}%` }}></div>
-              </div>
-
+              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-4 overflow-hidden"><div className={`h-full rounded-full ${statusColor} transition-all duration-500`} style={{ width: `${percentage}%` }}></div></div>
               <div className="flex justify-between items-end text-sm">
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider mb-1">Spent</p>
-                  <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(spent)}</p>
-                </div>
+                <div><p className="text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider mb-1">Spent</p><p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(spent)}</p></div>
                 <div className="text-right">
                   <p className="text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider mb-1">Monthly Limit</p>
-                  <div className="flex items-center border-b border-gray-200 dark:border-gray-600 focus-within:border-blue-500">
-                    <span className="text-gray-500 mr-1 text-xs">₹</span>
-                    <input 
-                      type="number" 
-                      value={limit} 
-                      onChange={(e) => handleUpdateBudget(category, e.target.value)}
-                      className="w-16 md:w-20 bg-transparent outline-none font-semibold text-gray-900 dark:text-white text-right"
-                    />
-                  </div>
+                  <div className="flex items-center border-b border-gray-200 dark:border-gray-600 focus-within:border-blue-500"><span className="text-gray-500 mr-1 text-xs">₹</span><input type="number" value={limit} onChange={(e) => handleUpdateBudget(category, e.target.value)} className="w-16 md:w-20 bg-transparent outline-none font-semibold text-gray-900 dark:text-white text-right" /></div>
                 </div>
               </div>
             </div>
@@ -883,47 +696,28 @@ function GoalsView({ goals, db, user, appId }) {
     e.preventDefault();
     if(!user || !newGoal.name || !newGoal.target) return;
     const newId = Date.now().toString();
-    const gObj = { ...newGoal, id: newId, target: parseFloat(newGoal.target), current: parseFloat(newGoal.current) };
-    try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', newId), gObj); setShowAdd(false); setNewGoal({ name: '', target: '', current: '0', color: '#3b82f6' }); }
-    catch(err) { console.error(err); }
+    try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', newId), { ...newGoal, id: newId, target: parseFloat(newGoal.target), current: parseFloat(newGoal.current) }); setShowAdd(false); setNewGoal({ name: '', target: '', current: '0', color: '#3b82f6' }); } catch(err) {}
   };
 
   const addFunds = async (goal, amount) => {
     if(!user) return;
-    const updated = { ...goal, current: Math.min(goal.target, goal.current + amount) };
-    try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', goal.id), updated); } catch(e){}
+    try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', goal.id), { ...goal, current: Math.min(goal.target, goal.current + amount) }); } catch(e){}
   };
 
-  const deleteGoal = async (id) => {
-    if(!user) return;
-    try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', id)); } catch(e){}
-  }
+  const deleteGoal = async (id) => { if(!user) return; try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', id)); } catch(e){} }
 
   return (
     <div className="space-y-6 animate-fade-in mb-6 md:mb-0">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 rounded-3xl shadow-lg text-white gap-4">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2 flex items-center">
-            <Target className="w-6 h-6 md:w-8 md:h-8 mr-2 md:mr-3 opacity-80" /> Savings Goals
-          </h2>
-          <p className="text-blue-100 text-sm md:text-base max-w-md">Goals are tracking lifetime savings (not affected by month filter).</p>
-        </div>
-        <button onClick={() => setShowAdd(!showAdd)} className="bg-white text-blue-600 px-5 py-2.5 md:py-3 rounded-xl font-bold shadow-sm hover:bg-blue-50 transition-colors flex items-center justify-center sm:shrink-0 w-full sm:w-auto">
-          <Plus className="w-5 h-5 mr-2" /> New Goal
-        </button>
+        <div><h2 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2 flex items-center"><Target className="w-6 h-6 mr-3 opacity-80" /> Savings Goals</h2></div>
+        <button onClick={() => setShowAdd(!showAdd)} className="bg-white text-blue-600 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-blue-50 transition-colors flex items-center justify-center sm:shrink-0 w-full sm:w-auto"><Plus className="w-5 h-5 mr-2" /> New Goal</button>
       </div>
 
       {showAdd && (
         <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
            <form onSubmit={handleAdd} className="flex flex-col md:flex-row gap-4 items-end">
-             <div className="flex-1 w-full space-y-1">
-               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Goal Name</label>
-               <input required type="text" placeholder="e.g. Portfolio target, Laptop" value={newGoal.name} onChange={e=>setNewGoal({...newGoal, name: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl outline-none dark:text-white text-sm" />
-             </div>
-             <div className="w-full md:w-48 space-y-1">
-               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Target (₹)</label>
-               <input required type="number" placeholder="50000" value={newGoal.target} onChange={e=>setNewGoal({...newGoal, target: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl outline-none dark:text-white text-sm" />
-             </div>
+             <div className="flex-1 w-full space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Goal Name</label><input required type="text" value={newGoal.name} onChange={e=>setNewGoal({...newGoal, name: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl outline-none dark:text-white text-sm" /></div>
+             <div className="w-full md:w-48 space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Target (₹)</label><input required type="number" value={newGoal.target} onChange={e=>setNewGoal({...newGoal, target: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl outline-none dark:text-white text-sm" /></div>
              <button type="submit" className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors text-sm">Save</button>
            </form>
         </div>
@@ -934,32 +728,12 @@ function GoalsView({ goals, db, user, appId }) {
           const percent = goal.target > 0 ? Math.min((goal.current / goal.target) * 100, 100) : 0;
           return (
             <div key={goal.id} className="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 group">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white">{goal.name}</h3>
-                <span className="text-xl md:text-2xl font-black" style={{ color: goal.color }}>{percent.toFixed(0)}%</span>
-              </div>
-              
-              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 md:h-4 mb-2 overflow-hidden shadow-inner">
-                <div className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden" style={{ width: `${percent}%`, backgroundColor: goal.color }}>
-                   <div className="absolute top-0 left-0 w-full h-full bg-white/20 animate-pulse"></div>
-                </div>
-              </div>
-
-              <div className="flex justify-between text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-5">
-                <span>{formatCurrency(goal.current)} saved</span>
-                <span>{formatCurrency(goal.target)} target</span>
-              </div>
-
+              <div className="flex justify-between items-start mb-4"><h3 className="text-lg font-bold text-gray-900 dark:text-white">{goal.name}</h3><span className="text-xl font-black" style={{ color: goal.color }}>{percent.toFixed(0)}%</span></div>
+              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 mb-2 overflow-hidden shadow-inner"><div className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden" style={{ width: `${percent}%`, backgroundColor: goal.color }}></div></div>
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-5"><span>{formatCurrency(goal.current)} saved</span><span>{formatCurrency(goal.target)} target</span></div>
               <div className="flex space-x-2">
-                <button onClick={() => addFunds(goal, 500)} className="flex-1 py-2 text-xs md:text-sm font-medium bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-                  + ₹500
-                </button>
-                <button onClick={() => addFunds(goal, 1000)} className="flex-1 py-2 text-xs md:text-sm font-medium bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">
-                  + ₹1k
-                </button>
-                <button onClick={() => deleteGoal(goal.id)} className="px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <button onClick={() => addFunds(goal, 500)} className="flex-1 py-2 text-xs font-medium bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">+ ₹500</button>
+                <button onClick={() => deleteGoal(goal.id)} className="px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           )
@@ -973,81 +747,32 @@ function GoalsView({ goals, db, user, appId }) {
 // AI ASSISTANT VIEW
 // ==========================================
 function AIAssistantView({ transactions, analytics, budgets, goals, profile, selectedMonth }) {
-  const [messages, setMessages] = useState([
-    { role: 'assistant', text: `Hey ${profile?.name}! 👋 I'm your NeoFin Wealth Advisor. I'm currently analyzing your data for ${selectedMonth === 'all' ? 'All Time' : selectedMonth}. Want to know how to optimize your expenses or review your SIPs?` }
-  ]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
-
+  const [messages, setMessages] = useState([{ role: 'assistant', text: `Hey ${profile?.name}! 👋 I'm your NeoFin Wealth Advisor. I'm currently analyzing your data for ${selectedMonth === 'all' ? 'All Time' : selectedMonth}.` }]);
+  const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const messagesEndRef = useRef(null);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
-
-  const getContextSummary = () => {
-    return `
-      User Profile: ${profile?.name}
-      Currently Analyzing Timeframe: ${selectedMonth === 'all' ? 'Lifetime Data' : selectedMonth}
-      Data for selected timeframe (INR):
-      - Income: ₹${analytics.totalIncome}
-      - Expenses: ₹${analytics.totalExpense}
-      - Invested: ₹${analytics.totalInvestedMonth}
-      - Balance: ₹${analytics.balance}
-      - Savings Rate: ${analytics.savingsRate.toFixed(1)}%
-      - Category Spend: ${JSON.stringify(analytics.currentMonthExpenses)}
-      - Defined Budgets: ${JSON.stringify(budgets)}
-      - Lifetime Goals: ${JSON.stringify(goals.map(g => `${g.name}: ₹${g.current}/₹${g.target}`))}
-    `;
-  };
 
   const handleSend = async (textPrompt) => {
     const userMessage = typeof textPrompt === 'string' ? textPrompt.trim() : input.trim();
     if (!userMessage || loading) return;
+    setInput(''); setMessages(prev => [...prev, { role: 'user', text: userMessage }]); setLoading(true);
 
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
-    setLoading(true);
-
-    const systemPrompt = `You are a friendly, encouraging personal finance advisor for a young Indian adult.
-    You are integrated into 'NeoFin'. The user's name is ${profile?.name}.
-    Use the real-time data provided to give specific, actionable advice based on the explicitly selected timeframe.
-    Focus on: 
-    1. Managing monthly income effectively (rent, food, travel).
-    2. The power of compounding and early investing (SIPs via Groww/Zerodha/Upstox).
-    Format with short bullet points, use ₹ symbol. Keep responses very concise and mobile-friendly.
-    
-    Data Context:
-    ${getContextSummary()}
-    `;
-
+    const systemPrompt = `You are a friendly personal finance advisor for a young Indian adult. User: ${profile?.name}. Focus on managing monthly income effectively, compounding, and SIPs. Use ₹ symbol. Data Context: Income: ₹${analytics.totalIncome}, Expenses: ₹${analytics.totalExpense}, Balance: ₹${analytics.balance}, Budgets: ${JSON.stringify(budgets)}`;
     const aiResponseText = await callGeminiAPI(userMessage, systemPrompt);
-    setMessages(prev => [...prev, { role: 'assistant', text: aiResponseText }]);
-    setLoading(false);
+    setMessages(prev => [...prev, { role: 'assistant', text: aiResponseText }]); setLoading(false);
   };
 
-  const suggestedPrompts = [
-    `Analyze my ${selectedMonth === 'all' ? 'overall' : selectedMonth} spends`,
-    "Am I saving enough?",
-    "How to start a ₹500 SIP?",
-  ];
+  const suggestedPrompts = [`Analyze my spends`, "Am I saving enough?", "How to start a ₹500 SIP?"];
 
   return (
     <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)] flex flex-col animate-fade-in bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden relative">
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 md:p-4 text-white flex items-center justify-between shadow-sm z-10">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-             <Bot className="w-5 h-5 md:w-6 md:h-6" />
-          </div>
-          <div>
-            <h2 className="font-bold text-base md:text-lg">NeoFin Advisor</h2>
-            <p className="text-[10px] md:text-xs text-blue-100 flex items-center"><Calendar className="w-3 h-3 mr-1"/> Analyzing: {selectedMonth === 'all' ? 'All Time' : selectedMonth}</p>
-          </div>
-        </div>
+        <div className="flex items-center space-x-3"><div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm"><Bot className="w-5 h-5 md:w-6 md:h-6" /></div><div><h2 className="font-bold text-base md:text-lg">NeoFin Advisor</h2></div></div>
       </div>
-
       <div className="flex-1 overflow-y-auto p-4 space-y-4 md:space-y-6 custom-scrollbar bg-gray-50/50 dark:bg-gray-900/50">
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`flex max-w-[88%] md:max-w-[75%] space-x-2 md:space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${msg.role === 'user' ? 'bg-blue-600' : 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'}`}>
+              <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${msg.role === 'user' ? 'bg-blue-600' : 'bg-indigo-100 text-indigo-600'}`}>
                 {msg.role === 'user' ? <User className="w-3 h-3 md:w-4 md:h-4 text-white" /> : <Sparkles className="w-3 h-3 md:w-4 md:h-4" />}
               </div>
               <div className={`p-3 md:p-4 rounded-2xl shadow-sm ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-sm'}`}>
@@ -1056,44 +781,20 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="flex space-x-2 md:space-x-3">
-              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-spin" /></div>
-              <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-3 md:p-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-1.5">
-                <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
+        {loading && <div className="flex justify-start"><div className="flex space-x-2 md:space-x-3"><div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-spin" /></div></div></div>}
         <div ref={messagesEndRef} />
       </div>
-
       <div className="p-3 md:p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
         {messages.length === 1 && (
           <div className="flex overflow-x-auto gap-2 pb-3 mb-1 custom-scrollbar hide-scrollbar-mobile">
-            {suggestedPrompts.map((prompt, i) => (
-              <button key={i} onClick={() => handleSend(prompt)} className="whitespace-nowrap px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs rounded-full border border-gray-200 dark:border-gray-600 transition-colors">
-                {prompt}
-              </button>
-            ))}
+            {suggestedPrompts.map((prompt, i) => <button key={i} onClick={() => handleSend(prompt)} className="whitespace-nowrap px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs rounded-full border border-gray-200 dark:border-gray-600 transition-colors">{prompt}</button>)}
           </div>
         )}
         <form onSubmit={handleSend} className="relative flex items-center">
-          <input 
-            type="text" value={input} onChange={(e) => setInput(e.target.value)}
-            placeholder={`Ask about your ${selectedMonth === 'all' ? 'overall' : selectedMonth} finances...`}
-            className="w-full pl-4 pr-12 py-3 md:py-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm transition-shadow"
-            disabled={loading}
-          />
-          <button type="submit" disabled={!input.trim() || loading} className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors">
-            <Send className="w-4 h-4 md:w-5 md:h-5" />
-          </button>
+          <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask a question...`} className="w-full pl-4 pr-12 py-3 md:py-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm transition-shadow" disabled={loading} />
+          <button type="submit" disabled={!input.trim() || loading} className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"><Send className="w-4 h-4 md:w-5 md:h-5" /></button>
         </form>
       </div>
-      <style dangerouslySetInnerHTML={{__html: `.hide-scrollbar-mobile::-webkit-scrollbar { display: none; } .hide-scrollbar-mobile { -ms-overflow-style: none; scrollbar-width: none; }`}}/>
     </div>
   );
 }
