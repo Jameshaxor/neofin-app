@@ -79,13 +79,16 @@ const autoCategorize = (description) => {
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
   
-  // Switched to 1.5-flash to bypass the annoying 2.0 Quota limits!
+  // 1. Strict safety check for the API key
+  if (!apiKey || apiKey === 'undefined') {
+    return "Setup Error: VITE_GEMINI_API_KEY is missing! Please add it to Vercel and click REDEPLOY.";
+  }
+
+  // 2. Using the exact, verified Gemini 1.5 Flash endpoint
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   const payload = { 
-    contents: [
-      { role: "user", parts: [{ text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }] }
-    ] 
+    contents: [{ role: "user", parts: [{ text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }] }] 
   };
   
   try {
@@ -94,14 +97,22 @@ const callGeminiAPI = async (prompt, systemInstruction) => {
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(payload) 
     });
+    
     const data = await response.json();
     
-    if (!response.ok) return `AI Error (${response.status}): ${data.error?.message || "Check API Key"}`;
-    if (data.candidates && data.candidates[0].content) return data.candidates[0].content.parts[0].text;
+    if (!response.ok) {
+      console.error("Gemini API Error details:", data);
+      return `AI Error (${response.status}): ${data.error?.message || "Check API Key and Model Name"}`;
+    }
+    
+    if (data.candidates && data.candidates[0].content) {
+      return data.candidates[0].content.parts[0].text;
+    }
     
     return "I couldn't generate a specific response. Try rephrasing.";
   } catch (error) { 
-    return "Network error. Please check your internet connection and API Key."; 
+    console.error("Fetch error:", error);
+    return "Network error. Please check your internet connection."; 
   }
 };
 
