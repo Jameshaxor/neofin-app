@@ -349,7 +349,7 @@ export default function App() {
 }
 
 // ==========================================
-// ONBOARDING SCREEN (Google Sign-In)
+// ONBOARDING SCREEN (Landing Page Style)
 // ==========================================
 function OnboardingScreen({ onComplete, onLoginStart, isLoading }) {
   const [isGreeting, setIsGreeting] = useState(false);
@@ -357,7 +357,7 @@ function OnboardingScreen({ onComplete, onLoginStart, isLoading }) {
 
   const handleGoogleLogin = async () => {
     try {
-      if (onLoginStart) onLoginStart(); // Tells the main app to lock the screen so we don't glitch out!
+      if (onLoginStart) onLoginStart();
       const auth = getAuth();
       const provider = new GoogleAuthProvider();
       
@@ -379,32 +379,67 @@ function OnboardingScreen({ onComplete, onLoginStart, isLoading }) {
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 transition-colors duration-200">
         <div className="flex flex-col items-center animate-fade-in">
           <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-6" />
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Welcome, {displayName}.</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Initializing your secure financial workspace...</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome, {displayName}.</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Preparing your secure workspace...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 transition-colors duration-200">
-      <div className="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-800 animate-fade-in text-center relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
-        <div className="w-14 h-14 bg-gray-50 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-gray-100 dark:border-gray-700 text-blue-600">
-          <Compass className="w-7 h-7" />
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-4 md:p-6 transition-colors duration-200">
+      <div className="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-[2rem] shadow-xl border border-gray-200 dark:border-gray-800 animate-fade-in relative overflow-hidden">
+        {/* Top Accent Line */}
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+
+        {/* Logo */}
+        <div className="flex justify-center mb-8">
+          <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center shadow-inner border border-blue-100 dark:border-blue-800/50">
+            <Compass className="w-8 h-8 text-blue-600 dark:text-blue-500" />
+          </div>
         </div>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">NeoFin Security</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Sign in to permanently sync your wealth data across all your devices.</p>
-        
-        <button onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-3">
-          <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          Sign in with Google
+
+        {/* Hero Text */}
+        <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white text-center mb-3 tracking-tight">NeoFin</h1>
+        <p className="text-base text-gray-500 dark:text-gray-400 text-center mb-8">Master your money with AI-driven insights.</p>
+
+        {/* Feature List */}
+        <div className="space-y-6 mb-10">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+              <Wallet className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Track Wealth</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Monitor cash flow & budgets</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">AI Advisor</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Personalized financial guidance</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
+              <LayoutDashboard className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Cloud Sync</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Securely access anywhere</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Google Login Button */}
+        <button onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg">
+          <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Continue with Google
         </button>
+        <p className="mt-4 text-[10px] text-center text-gray-400">By continuing, you agree to secure your data with Firebase Auth.</p>
       </div>
     </div>
   );
