@@ -161,12 +161,22 @@ useEffect(() => {
   const [selectedMonth, setSelectedMonth] = useState(getMonthYearString(new Date()));
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (e) { console.error("Auth Error:", e); setAuthLoading(false); }
-    };
-    initAuth();
+    const auth = getAuth();
+    
+    // This actively listens for your Google Sign-In to finish
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Success! Google let you in. Stop the loading spinner.
+        setAuthLoading(false);
+      } else {
+        // Nobody is logged in yet. Stop the spinner so they can click the Google button.
+        setAuthLoading(false);
+      }
+    });
+
+    // Cleanup the listener when the app closes
+    return () => unsubscribe();
+  }, []);
 
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
