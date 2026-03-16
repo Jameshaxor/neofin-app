@@ -14,7 +14,7 @@ import {
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, getDoc } from "firebase/firestore";
 
 // --- FIREBASE INITIALIZATION ---
 const firebaseConfig = {
@@ -206,15 +206,27 @@ export default function App() {
     if (!currentUser) return;
     
     const baseRef = `artifacts/${appId}/users/${currentUser.uid}`;
+    const profileRef = doc(db, baseRef, 'profile', 'data');
+    
     try {
-      await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
-      await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
-      for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
-      for (const t of MOCK_TRANSACTIONS) { await setDoc(doc(db, baseRef, 'transactions', t.id), t); }
-    } catch (e) { console.error("Failed to setup profile:", e); } 
-    finally { setIsInitializingAccount(false); }
+      // SMART FIX: Check if the user already exists before doing anything!
+      const profileSnap = await getDoc(profileRef);
+      
+      if (!profileSnap.exists()) {
+        // This is a brand new user! Give them the starter pack.
+        await setDoc(profileRef, { name: name.trim(), joinedAt: new Date().toISOString() });
+        await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
+        for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
+        for (const t of MOCK_TRANSACTIONS) { await setDoc(doc(db, baseRef, 'transactions', t.id), t); }
+      }
+      // If the profile DOES exist, it skips the block above and does nothing to your data!
+      
+    } catch (e) { 
+      console.error("Failed to setup profile:", e); 
+    } finally { 
+      setIsInitializingAccount(false); 
+    }
   };
-
   const handleLogout = () => { signOut(auth); };
 
   // =========================================================
