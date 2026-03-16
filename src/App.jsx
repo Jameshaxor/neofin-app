@@ -11,6 +11,8 @@ import {
   TrendingUp, Compass, Calendar, ChevronDown, Loader2, LogOut
 } from 'lucide-react';
 
+import WelcomeScreen from './components/WelcomeScreen';
+
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
@@ -66,17 +68,15 @@ const autoCategorize = (description) => {
   if (desc.match(/course|udemy|coursera|books|fees|college|tuition/)) return 'Education';
   if (desc.match(/uber|ola|rapido|metro|irctc|redbus|bus|train|petrol|fuel/)) return 'Transport';
   if (desc.match(/cafe|mess|food|grocery|restaurant|swiggy|zomato|zepto|blinkit/)) return 'Food';
-  // Added variations of jiohotstar, jiocinema, and common typos!
   if (desc.match(/netflix|spotify|movie|bookmyshow|hotstar|hostar|prime|jiocinema|jiohotstar|subscription/)) return 'Entertainment';
   if (desc.match(/amazon|flipkart|myntra|ajio|cloth|shoe/)) return 'Shopping';
-  // Made Housing strictly look for wifi/recharge keywords instead of just 'jio'
   if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|broadband|recharge|jio fiber/)) return 'Housing';
   
   return 'Other';
 };
+
 // --- TAVILY SEARCH INTEGRATION ---
 const searchWeb = async (query) => {
-  // Safely pulling the key from Vercel!
   const tavilyKey = import.meta.env.VITE_TAVILY_API_KEY; 
 
   if (!tavilyKey) {
@@ -100,16 +100,15 @@ const searchWeb = async (query) => {
     
     if (!data.results || data.results.length === 0) return "No real-time data found.";
 
-    // Combine the top 3 results into a clean block for the AI to read
     return data.results.map(r => `Source: ${r.title}\nInfo: ${r.content}`).join('\n\n');
   } catch (e) {
     console.error("Tavily Search failed:", e);
     return "Could not fetch real-time data.";
   }
 };
+
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
-  // Hardcoding for immediate testing on your ASUS!
   const apiKey = import.meta.env.VITE_GROQ_API_KEY; 
   
   try {
@@ -245,14 +244,11 @@ export default function App() {
     const baseRef = `artifacts/${appId}/users/${currentUser.uid}`;
     
     try {
-      // 1. Check if the user already exists in the database
       const profileSnap = await getDoc(doc(db, baseRef, 'profile', 'data'));
       
-      // 2. ONLY inject data if this is a brand new account
       if (!profileSnap.exists()) {
         await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
         await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
-        // Notice: The Mock Data injection line is completely gone!
       }
     } catch (e) { 
       console.error("Failed to setup profile:", e); 
@@ -266,17 +262,14 @@ export default function App() {
   // THE NEW, BULLETPROOF "TRAFFIC COP" ROUTING LOGIC
   // =========================================================
   
-  // A. Still checking Firebase connection...
   if (authLoading || (user && profile === null && !isInitializingAccount)) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
   }
 
-  // B. Not logged in, OR no profile data exists, OR currently creating account -> Lock them on Welcome Screen
   if (!user || profile === false || isInitializingAccount) {
     return <OnboardingScreen onComplete={handleCreateProfile} onLoginStart={() => setIsInitializingAccount(true)} isLoading={isInitializingAccount} />;
   }
 
-  // C. Fully Logged in & Data Loaded -> Let them into the Dashboard!
   const themeClass = darkMode ? 'dark' : '';
   const navItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
@@ -358,12 +351,12 @@ export default function App() {
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
               <button 
-    onClick={() => { if(window.confirm('Are you sure you want to sign out?')) handleLogout(); }} 
-    className="md:hidden p-2 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-800/50 transition-colors"
-    title="Sign Out"
-  >
-    <LogOut className="w-5 h-5" />
-  </button>
+                onClick={() => { if(window.confirm('Are you sure you want to sign out?')) handleLogout(); }} 
+                className="md:hidden p-2 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-800/50 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
           </header>
 
@@ -447,65 +440,7 @@ function OnboardingScreen({ onComplete, onLoginStart, isLoading }) {
     );
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 p-4 md:p-6 transition-colors duration-200">
-      <div className="max-w-md w-full bg-white dark:bg-gray-900 p-8 rounded-[2rem] shadow-xl border border-gray-200 dark:border-gray-800 animate-fade-in relative overflow-hidden">
-        {/* Top Accent Line */}
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
-
-        {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center shadow-inner border border-blue-100 dark:border-blue-800/50">
-            <Compass className="w-8 h-8 text-blue-600 dark:text-blue-500" />
-          </div>
-        </div>
-
-        {/* Hero Text */}
-        <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white text-center mb-3 tracking-tight">NeoFin</h1>
-        <p className="text-base text-gray-500 dark:text-gray-400 text-center mb-8">Master your money with AI-driven insights.</p>
-
-        {/* Feature List */}
-        <div className="space-y-6 mb-10">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
-              <Wallet className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Track Wealth</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Monitor cash flow & budgets</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-white">AI Advisor</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Personalized financial guidance</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
-              <LayoutDashboard className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Cloud Sync</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Securely access anywhere</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Google Login Button */}
-        <button onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg">
-          <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-          Continue with Google
-        </button>
-        <p className="mt-4 text-[10px] text-center text-gray-500 dark:text-gray-400">
-          Your financial data is encrypted and securely synced.
-        </p>
-      </div>
-    </div>
-  );
+  return <WelcomeScreen onLogin={handleGoogleLogin} />;
 }
 
 // ==========================================
@@ -666,7 +601,6 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
     
     let finalCategory = formData.category;
     
-    // SMART FIX: Handle Income vs Expense properly
     if (finalCategory === 'Other') {
       if (formData.type === 'income') {
         finalCategory = 'Income';
@@ -866,7 +800,6 @@ function GoalsView({ goals, db, user, appId }) {
 // AI ASSISTANT VIEW
 // ==========================================
 function AIAssistantView({ transactions, analytics, budgets, goals, profile, selectedMonth }) {
-  // 1. Unified State - We use aiMessages to match your persistence logic
   const [aiMessages, setAiMessages] = useState(() => {
     const saved = localStorage.getItem('neofin-ai-chats');
     return saved ? JSON.parse(saved) : [{ 
@@ -879,10 +812,8 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
   const [isAiLoading, setIsAiLoading] = useState(false); 
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMessages]);
 
-  // Auto-save to local storage
   useEffect(() => {
     localStorage.setItem('neofin-ai-chats', JSON.stringify(aiMessages));
   }, [aiMessages]);
@@ -896,7 +827,6 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
     setIsAiLoading(true);
 
     try {
-      // 1. LIVE WEB SEARCH (Tavily)
       const keywords = ["market", "nifty", "stock", "price", "sensex", "gold", "today", "news"];
       const needsSearch = keywords.some(word => text.toLowerCase().includes(word));
       let liveWebData = "No live web data needed.";
@@ -904,18 +834,14 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
         liveWebData = await searchWeb(text); 
       }
 
-      // 2. LIVE DATABASE INJECTION (The Blindfold comes off!)
-      // We take your actual app state 'transactions' and turn it into text
       const financialData = transactions && transactions.length > 0 
         ? transactions.map(t => `- ${t.type.toUpperCase()}: ₹${t.amount} on ${t.category} (${t.title || 'No note'})`).join('\n')
         : "The user has no transactions logged yet.";
 
-      // 3. CHAT MEMORY
       const historyContext = aiMessages.slice(-4)
         .map(m => `${m.role === 'ai' ? 'Assistant' : 'User'}: ${m.text}`)
         .join('\n');
 
-      // 4. THE ULTIMATE SYSTEM PROMPT
       const systemPrompt = `You are NeoFin AI, an elite Indian wealth manager and financial strategist.
       You have direct access to the user's live financial data. Use it to give highly personalized, accurate advice.
       
@@ -933,7 +859,7 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
       
       CONVERSATION HISTORY:
       ${historyContext}`;
-      // 5. Send to Groq
+      
       const response = await callGeminiAPI(text, systemPrompt);
       
       setAiMessages(prev => [...prev, { role: 'ai', text: response }]);
