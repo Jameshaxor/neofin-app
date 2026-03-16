@@ -86,27 +86,53 @@ const autoCategorize = (description) => {
 // --- GEMINI API INTEGRATION (Using Vercel Environment Variables) ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  
+  // Use the universal stable v1beta endpoint and the standard gemini-1.5-flash model
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   const payload = {
-    contents: [{ parts: [{ text: prompt }] }],
-    systemInstruction: { parts: [{ text: systemInstruction }] }
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: `System Context: ${systemInstruction}\n\nUser Message: ${prompt}` }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 1024,
+    }
   };
 
-  const delay = (ms) => new Promise(res => setTimeout(res, ms));
-  let retries = 5; let backoff = 1000;
-
-  while (retries > 0) {
-    try {
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
-    } catch (error) {
-      retries -= 1;
-      if (retries === 0) return "Connection to AI advisor failed. Please try again later.";
-      await delay(backoff); backoff *= 2;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Gemini API Error Details:", errorData);
+      // This will show you exactly why it's failing in the UI
+      return `AI Error (${response.status}): ${errorData.error?.message || "Invalid Request"}`;
     }
+
+    const data = await response.json();
+    
+    if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
+      return data.candidates[0].content.parts[0].text;
+    } else {
+      return "I processed the data but couldn't formulate a response. Please try rephrasing.";
+    }
+  } catch (error) {
+    console.error("Network Exception:", error);
+    return "Network error. Please check if your VITE_GEMINI_API_KEY is correct in Vercel and that you have internet access.";
   }
 };
 
