@@ -77,10 +77,11 @@ const autoCategorize = (description) => {
 
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
-  // 🚨 THE NUCLEAR OPTION 🚨
-  const apiKey = "AIzaSyCsQEjvnsrxwnijsA5FFEgIaAVQ2mSqJrU"; 
+  // Back to using your secure Vercel environment variable!
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
   
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  // Pointing to the modern 2.0 model
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
   const payload = { 
     contents: [
