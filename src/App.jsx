@@ -898,7 +898,7 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
         <div className="flex items-center space-x-3"><div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm"><Bot className="w-5 h-5 md:w-6 md:h-6" /></div><div><h2 className="font-bold text-base md:text-lg">NeoFin Advisor</h2></div></div>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-4 md:space-y-6 custom-scrollbar bg-gray-50/50 dark:bg-gray-900/50">
-        {messages.map((msg, idx) => (
+        {aiMessages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`flex max-w-[88%] md:max-w-[75%] space-x-2 md:space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
               <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${msg.role === 'user' ? 'bg-blue-600' : 'bg-indigo-100 text-indigo-600'}`}>
@@ -910,7 +910,7 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
             </div>
           </div>
         ))}
-        {loading && <div className="flex justify-start"><div className="flex space-x-2 md:space-x-3"><div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-spin" /></div></div></div>}
+        {isAiLoading && <div className="flex justify-start"><div className="flex space-x-2 md:space-x-3"><div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-spin" /></div></div></div>}
         <div ref={messagesEndRef} />
       </div>
       <div className="p-3 md:p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
@@ -919,9 +919,25 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
             {suggestedPrompts.map((prompt, i) => <button key={i} onClick={() => handleSend(prompt)} className="whitespace-nowrap px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs rounded-full border border-gray-200 dark:border-gray-600 transition-colors">{prompt}</button>)}
           </div>
         )}
-        <form onSubmit={handleSend} className="relative flex items-center">
-          <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask a question...`} className="w-full pl-4 pr-12 py-3 md:py-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm transition-shadow" disabled={loading} />
-          <button type="submit" disabled={!input.trim() || loading} className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"><Send className="w-4 h-4 md:w-5 md:h-5" /></button>
+        <form 
+          onSubmit={(e) => { e.preventDefault(); handleSendAiMessage(aiInput); }} 
+          className="relative flex items-center"
+        >
+          <input 
+            type="text" 
+            value={aiInput} 
+            onChange={(e) => setAiInput(e.target.value)} 
+            placeholder="Ask a question..." 
+            className="w-full pl-4 pr-12 py-3 md:py-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm transition-shadow" 
+            disabled={isAiLoading} 
+          />
+          <button 
+            type="submit" 
+            disabled={!aiInput.trim() || isAiLoading} 
+            className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
+          >
+            <Send className="w-4 h-4 md:w-5 md:h-5" />
+          </button>
         </form>
       </div>
     </div>
