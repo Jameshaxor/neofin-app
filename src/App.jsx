@@ -85,7 +85,7 @@ const callGeminiAPI = async (prompt, systemInstruction) => {
   }
 
   // 2. Using the exact, verified Gemini 1.5 Flash endpoint
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   
   const payload = { 
     contents: [{ role: "user", parts: [{ text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }] }] 
