@@ -78,22 +78,32 @@ const autoCategorize = (description) => {
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
   // 🚨 THE NUCLEAR OPTION 🚨
-  // Paste your actual key inside these quotes for testing!
   const apiKey = "AIzaSyCsQEjvnsrxwnijsA5FFEgIaAVQ2mSqJrU"; 
   
-  // Using v1beta and 1.5-flash because it is the most stable free-tier endpoint
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
-  const payload = {
+  const payload = { 
     contents: [
-      {
-        role: "user",
-        parts: [
-          { text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }
-        ]
-      }
-    ]
+      { role: "user", parts: [{ text: `System Context: ${systemInstruction}\n\nUser Question: ${prompt}` }] }
+    ] 
   };
+  
+  try {
+    const response = await fetch(url, { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify(payload) 
+    });
+    const data = await response.json();
+    
+    if (!response.ok) return `AI Error (${response.status}): ${data.error?.message || "Check API Key"}`;
+    if (data.candidates && data.candidates[0].content) return data.candidates[0].content.parts[0].text;
+    
+    return "I couldn't generate a specific response. Try rephrasing.";
+  } catch (error) { 
+    return "Network error. Please check your internet connection and API Key."; 
+  }
+};
 
 
 // ==========================================
