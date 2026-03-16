@@ -834,31 +834,36 @@ function GoalsView({ goals, db, user, appId }) {
 // AI ASSISTANT VIEW
 // ==========================================
 function AIAssistantView({ transactions, analytics, budgets, goals, profile, selectedMonth }) {
-  const [messages, setMessages] = useState(() => {
+  // 1. Unified State - We use aiMessages to match your persistence logic
+  const [aiMessages, setAiMessages] = useState(() => {
     const saved = localStorage.getItem('neofin-ai-chats');
     return saved ? JSON.parse(saved) : [{ 
-      role: 'assistant', 
+      role: 'ai', 
       text: `Hey ${profile?.name}! 👋 I'm your NeoFin Wealth Advisor. I'm currently analyzing your data for ${selectedMonth === 'all' ? 'All Time' : selectedMonth}.` 
     }];
   });
-  const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const messagesEndRef = useRef(null);
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const [aiInput, setAiInput] = useState(''); 
+  const [isAiLoading, setIsAiLoading] = useState(false); 
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll to bottom
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMessages]);
+
+  // Auto-save to local storage
   useEffect(() => {
-    localStorage.setItem('neofin-ai-chats', JSON.stringify(messages));
-  }, [messages]);
+    localStorage.setItem('neofin-ai-chats', JSON.stringify(aiMessages));
+  }, [aiMessages]);
 
   const handleSendAiMessage = async (text) => {
-    // 1. Prevent accidental double-clicks or empty messages
     if (!text.trim() || isAiLoading) return;
 
-    // 2. Add user message to UI immediately
     const userMsg = { role: 'user', text };
     setAiMessages(prev => [...prev, userMsg]);
     setAiInput('');
     setIsAiLoading(true);
 
     try {
-      // 3. Prepare "Context" so AI remembers the previous 4 messages
       const historyContext = aiMessages.slice(-4)
         .map(m => `${m.role === 'ai' ? 'Assistant' : 'User'}: ${m.text}`)
         .join('\n');
@@ -867,10 +872,8 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
       Conversation History for context:
       ${historyContext}`;
 
-      // 4. Call the API (using the Groq logic we set up)
       const response = await callGeminiAPI(text, systemPrompt);
       
-      // 5. Add AI response using the safe functional update to prevent crashes
       setAiMessages(prev => [...prev, { role: 'ai', text: response }]);
     } catch (error) {
       console.error("AI Error:", error);
@@ -879,13 +882,14 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
       setIsAiLoading(false);
     }
   };
+
   const handleClearChat = () => {
     if (window.confirm("Are you sure you want to delete all messages?")) {
       const welcomeMsg = [{ 
-        role: 'assistant', 
+        role: 'ai', 
         text: `Chat cleared! How can I help you now, ${profile?.name}?` 
       }];
-      setMessages(welcomeMsg);
+      setAiMessages(welcomeMsg);
       localStorage.removeItem('neofin-ai-chats');
     }
   };
@@ -895,8 +899,19 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
   return (
     <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)] flex flex-col animate-fade-in bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden relative">
       <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 md:p-4 text-white flex items-center justify-between shadow-sm z-10">
-        <div className="flex items-center space-x-3"><div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm"><Bot className="w-5 h-5 md:w-6 md:h-6" /></div><div><h2 className="font-bold text-base md:text-lg">NeoFin Advisor</h2></div></div>
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+            <Bot className="w-5 h-5 md:w-6 md:h-6" />
+          </div>
+          <div>
+            <h2 className="font-bold text-base md:text-lg">NeoFin Advisor</h2>
+          </div>
+        </div>
+        <button onClick={handleClearChat} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+          <Trash2 className="w-4 h-4 text-white/80" />
+        </button>
       </div>
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4 md:space-y-6 custom-scrollbar bg-gray-50/50 dark:bg-gray-900/50">
         {aiMessages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -910,19 +925,29 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
             </div>
           </div>
         ))}
-        {isAiLoading && <div className="flex justify-start"><div className="flex space-x-2 md:space-x-3"><div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0"><Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-spin" /></div></div></div>}
-        <div ref={messagesEndRef} />
-      </div>
-      <div className="p-3 md:p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
-        {messages.length === 1 && (
-          <div className="flex overflow-x-auto gap-2 pb-3 mb-1 custom-scrollbar hide-scrollbar-mobile">
-            {suggestedPrompts.map((prompt, i) => <button key={i} onClick={() => handleSend(prompt)} className="whitespace-nowrap px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs rounded-full border border-gray-200 dark:border-gray-600 transition-colors">{prompt}</button>)}
+        {isAiLoading && (
+          <div className="flex justify-start">
+            <div className="flex space-x-2 md:space-x-3">
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                <Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
+              </div>
+            </div>
           </div>
         )}
-        <form 
-          onSubmit={(e) => { e.preventDefault(); handleSendAiMessage(aiInput); }} 
-          className="relative flex items-center"
-        >
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="p-3 md:p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+        {aiMessages.length === 1 && (
+          <div className="flex overflow-x-auto gap-2 pb-3 mb-1 custom-scrollbar hide-scrollbar-mobile">
+            {suggestedPrompts.map((p, i) => (
+              <button key={i} onClick={() => handleSendAiMessage(p)} className="whitespace-nowrap px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs rounded-full border border-gray-200 dark:border-gray-600 transition-colors">
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+        <form onSubmit={(e) => { e.preventDefault(); handleSendAiMessage(aiInput); }} className="relative flex items-center">
           <input 
             type="text" 
             value={aiInput} 
@@ -931,11 +956,7 @@ function AIAssistantView({ transactions, analytics, budgets, goals, profile, sel
             className="w-full pl-4 pr-12 py-3 md:py-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm transition-shadow" 
             disabled={isAiLoading} 
           />
-          <button 
-            type="submit" 
-            disabled={!aiInput.trim() || isAiLoading} 
-            className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors"
-          >
+          <button type="submit" disabled={!aiInput.trim() || isAiLoading} className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors">
             <Send className="w-4 h-4 md:w-5 md:h-5" />
           </button>
         </form>
