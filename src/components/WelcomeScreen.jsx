@@ -37,15 +37,15 @@ export default function WelcomeScreen({ onLogin }) {
       <div className="relative z-10 w-full max-w-sm flex flex-col items-center animate-page-enter">
         
         {/* Elite Logo */}
-        <div className="flex items-center gap-2.5 mb-12 stagger-1">
+        <div className="flex items-center gap-2.5 mb-8 stagger-1">
           <span className="text-4xl font-black tracking-tight italic text-gray-900 dark:text-white">NeoFin</span>
           <div className="h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]"></div>
         </div>
 
         {/* Hero Typography */}
         <div className="text-center mb-10 w-full">
-          <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-[0.4em] mb-4 stagger-2">Wealth Architecture</p>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.15] mb-6 stagger-2">
+          <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-[0.4em] mb-3 stagger-2">Wealth Architecture</p>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tighter leading-[1.15] mb-5 stagger-2">
             Command your <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-400 dark:to-indigo-500">
               capital.
@@ -93,17 +93,23 @@ export default function WelcomeScreen({ onLogin }) {
         <div className="w-full stagger-4">
           <button 
             onClick={handleLogin}
-            className="group relative w-full flex items-center justify-between px-6 py-4 bg-gray-900 dark:bg-white text-white dark:text-black rounded-2xl transition-all duration-300 ease-out hover:scale-[1.02] active:scale-95 shadow-xl dark:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+            className="group relative w-full flex items-center justify-center py-4 bg-gray-900 dark:bg-white text-white dark:text-black rounded-2xl transition-all duration-300 ease-out hover:scale-[1.02] active:scale-95 shadow-xl dark:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
           >
-            <div className="flex items-center gap-3">
+            {/* Absolute positioning keeps the logo anchored to the left without disrupting the text centering */}
+            <div className="absolute left-5 flex items-center justify-center">
               <GoogleLogo />
-              <span className="font-bold uppercase tracking-widest text-xs mt-0.5">Authenticate with Google</span>
             </div>
-            <ArrowRight className="w-4 h-4 transition-transform duration-300 ease-out group-hover:translate-x-1" />
+            
+            <span className="font-bold uppercase tracking-widest text-[11px] sm:text-xs">Authenticate with Google</span>
+            
+            {/* Absolute positioning keeps the arrow anchored to the right */}
+            <div className="absolute right-5 flex items-center justify-center">
+              <ArrowRight className="w-4 h-4 transition-transform duration-300 ease-out group-hover:translate-x-1" />
+            </div>
           </button>
         </div>
 
-        <p className="mt-6 text-[10px] font-bold text-gray-400 dark:text-[#525252] uppercase tracking-widest flex items-center gap-1.5 stagger-4">
+        <p className="mt-5 text-[10px] font-bold text-gray-400 dark:text-[#525252] uppercase tracking-widest flex items-center gap-1.5 stagger-4">
           <Lock className="w-3 h-3" /> Encrypted Session
         </p>
 
