@@ -18,13 +18,15 @@
     </script>
 
     <style>
-      /* This ensures that as soon as the 'dark' class is added, the background is dark */
-      html.dark { background-color: #030712 !important; } /* Matches Tailwind gray-950 */
-      html { background-color: #f9fafb; transition: none !important; } /* Matches gray-50 */
+      /* This ensures that as soon as the 'dark' class is added, the background is OLED dark */
+      html.dark { background-color: #02040A !important; } 
+      html { background-color: #f9fafb; transition: none !important; } 
     </style>
     
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#2563eb" />
+    
+    <meta name="theme-color" content="#02040A" />
+    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2950/2950536.png" />
@@ -36,7 +38,7 @@
       }
     </script>
   </head>
-  <body class="bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
+  <body class="bg-gray-50 dark:bg-[#02040A] transition-colors duration-200">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
