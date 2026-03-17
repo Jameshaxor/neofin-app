@@ -248,8 +248,14 @@ export default function App() {
                <LogOut className="w-5 h-5 text-[#525252] hover:text-rose-500 transition-colors" />
             </button>
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600/20 to-indigo-600/20 p-[1px]">
-              <div className="w-full h-full rounded-2xl bg-[#0D0D0D] overflow-hidden">
-                 <img src={user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} alt="avatar" className="w-full h-full object-cover" />
+              <div className="w-full h-full rounded-2xl bg-[#0D0D0D] overflow-hidden flex items-center justify-center">
+                 {user?.photoURL ? (
+                   <img src={user.photoURL} alt="avatar" className="w-full h-full object-cover" />
+                 ) : (
+                   <span className="text-lg font-black bg-clip-text text-transparent bg-gradient-to-br from-blue-400 to-indigo-600">
+                     {profile?.name?.charAt(0).toUpperCase() || 'U'}
+                   </span>
+                 )}
               </div>
             </div>
           </div>
@@ -319,7 +325,6 @@ function DashboardView({ analytics, transactions, selectedMonth }) {
   const filteredTx = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
   const recentTransactions = filteredTx.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
   
-  // Smart AI Alert Logic
   let aiAlert = "Analyzing your data patterns...";
   if (analytics.savingsRate > 40) aiAlert = "High liquidity detected. Excellent cycle for investments.";
   else if (analytics.savingsRate < 10 && analytics.totalExpense > 0) aiAlert = "High burn rate detected this cycle. Monitor discretionary spends.";
@@ -391,8 +396,8 @@ function DashboardView({ analytics, transactions, selectedMonth }) {
                   } return null;
                 }}
               />
-              <Line type="monotone" name="Income" dataKey="Income" stroke="#10b981" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }} animationDuration={1500} />
-              <Line type="monotone" name="Expense" dataKey="Expense" stroke="#ef4444" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#ef4444' }} animationDuration={1500} />
+              <Line type="monotone" name="Income" dataKey="Income" stroke="#10b981" strokeWidth={4} dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }} animationDuration={1500} />
+              <Line type="monotone" name="Expense" dataKey="Expense" stroke="#ef4444" strokeWidth={4} dot={{ r: 3, fill: '#ef4444', strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#ef4444' }} animationDuration={1500} />
             </LineChart>
           </ResponsiveContainer>
         </div>
