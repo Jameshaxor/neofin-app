@@ -9,7 +9,7 @@ import {
   Trash2, AlertCircle, ArrowUpRight, ArrowDownRight, 
   Wallet, Send, Bot, User, CheckCircle,
   TrendingUp, Compass, Calendar, ChevronDown, Loader2, LogOut,
-  Bell, Filter, ChevronRight, X
+  Bell, Filter, ChevronRight, X, RefreshCw
 } from 'lucide-react';
 
 import WelcomeScreen from './components/WelcomeScreen';
@@ -34,8 +34,23 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'neofin-prod'; 
 
-// --- INITIAL DATA ---
+// --- MOCK DATA FOR NEW USERS ---
+const MOCK_TRANSACTIONS = [
+  { id: '1', date: '2026-03-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
+  { id: '2', date: '2026-03-05', amount: 2000, type: 'expense', category: 'Investing', description: 'Zerodha Fund Transfer' },
+  { id: '3', date: '2026-03-08', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent & Utilities' },
+  { id: '4', date: '2026-03-12', amount: 1000, type: 'expense', category: 'Investing', description: 'Groww SIP (Nifty 50)' },
+  { id: '5', date: '2026-03-15', amount: 450, type: 'expense', category: 'Food', description: 'Local Cafe' },
+  { id: '6', date: '2026-02-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
+  { id: '7', date: '2026-02-05', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent & Utilities' },
+  { id: '8', date: '2026-02-15', amount: 1200, type: 'expense', category: 'Food', description: 'Zomato Orders' },
+];
+
 const INITIAL_BUDGETS = { Housing: 9000, Food: 3500, Transport: 2000, Investing: 3000, Education: 1500, Entertainment: 1500 };
+const INITIAL_GOALS = [
+  { id: 'g1', name: 'Emergency Fund', target: 50000, current: 15000, color: '#10b981' },
+  { id: 'g2', name: 'Goa Trip', target: 15000, current: 4000, color: '#f59e0b' }
+];
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#14b8a6', '#f43f5e'];
 
 // --- UTILITY FUNCTIONS ---
@@ -100,39 +115,25 @@ const AnimatedNumber = ({ value }) => {
   return <>{currentValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</>;
 };
 
-// --- TAVILY SEARCH INTEGRATION ---
-const searchWeb = async (query) => {
-  const tavilyKey = import.meta.env.VITE_TAVILY_API_KEY; 
-  if (!tavilyKey) return "No live data available.";
-  try {
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: tavilyKey, query: query, search_depth: "basic", max_results: 3 })
-    });
-    const data = await response.json();
-    if (!data.results || data.results.length === 0) return "No real-time data found.";
-    return data.results.map(r => `Source: ${r.title}\nInfo: ${r.content}`).join('\n\n');
-  } catch (e) { return "Could not fetch real-time data."; }
-};
-
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
-  const apiKey = import.meta.env.VITE_GROQ_API_KEY; 
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GROQ_API_KEY; 
+  // Works with your existing API setup
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+  
+  const payload = {
+    contents: [{ parts: [{ text: prompt }] }],
+    systemInstruction: { parts: [{ text: systemInstruction }] }
+  };
+
   try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", 
-        messages: [{ role: "system", content: systemInstruction }, { role: "user", content: prompt }],
-        temperature: 0.7
-      })
-    });
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
-    if (data.error) return `AI Error: ${data.error.message}`;
-    return data.choices[0].message.content;
-  } catch (error) { return "The AI Advisor is currently offline. Check your connection!"; }
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
+  } catch (error) {
+    return "Connection to AI advisor failed. Please try again later.";
+  }
 };
 
 // ==========================================
@@ -229,12 +230,15 @@ export default function App() {
     if (!name.trim()) return;
     const currentUser = auth.currentUser;
     if (!currentUser) return;
+    setIsInitializingAccount(true);
     const baseRef = `artifacts/${appId}/users/${currentUser.uid}`;
     try {
       const profileSnap = await getDoc(doc(db, baseRef, 'profile', 'data'));
       if (!profileSnap.exists()) {
         await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
         await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
+        for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
+        for (const t of MOCK_TRANSACTIONS) { await setDoc(doc(db, baseRef, 'transactions', t.id), t); }
       }
     } catch (e) { console.error("Failed to setup profile:", e); } 
     finally { setIsInitializingAccount(false); }
@@ -281,7 +285,7 @@ export default function App() {
           </div>
           <div className="flex gap-3">
             <button onClick={() => setDarkMode(!darkMode)} className="relative w-11 h-11 rounded-2xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] flex items-center justify-center transition-all duration-300 ease-out hover:scale-105 active:scale-95 shadow-sm dark:shadow-none">
-               {darkMode ? <Sun className="w-5 h-5 text-gray-400 dark:text-gray-400" /> : <Moon className="w-5 h-5 text-gray-600" />}
+               {darkMode ? <Sun className="w-5 h-5 text-gray-400" /> : <Moon className="w-5 h-5 text-gray-600" />}
             </button>
             <button onClick={handleLogout} className="relative w-11 h-11 rounded-2xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] flex items-center justify-center transition-all duration-300 ease-out hover:scale-105 active:scale-95 shadow-sm dark:shadow-none">
                <LogOut className="w-5 h-5 text-gray-600 dark:text-gray-400 hover:text-rose-500 dark:hover:text-rose-500 transition-colors" />
@@ -335,12 +339,12 @@ export default function App() {
             <button 
               key={item.id}
               onClick={() => setActiveTab(item.id)} 
-              className={`flex flex-col items-center justify-center flex-1 py-3 rounded-3xl transition-all duration-500 ease-out ${activeTab === item.id ? 'text-blue-600 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+              className={`flex flex-col items-center justify-center flex-1 py-3 rounded-3xl transition-all duration-500 ease-out ${activeTab === item.id ? 'text-blue-600 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
             >
               <div className={`p-1.5 rounded-xl transition-all duration-500 ease-out mb-1 ${activeTab === item.id ? 'bg-blue-50 dark:bg-blue-600/10 shadow-sm dark:shadow-[0_0_20px_rgba(37,99,235,0.2)] scale-110' : 'scale-100'}`}>
                 <item.icon className={`w-5 h-5 transition-all duration-500 ease-out ${activeTab === item.id ? 'stroke-[2.5px] text-blue-600 dark:text-blue-500' : 'stroke-[1.5px]'}`} />
               </div>
-              <span className={`text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-500 ease-out ${activeTab === item.id ? 'transform-none' : 'translate-y-0.5'}`}>{item.label}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-widest transition-all duration-500 ease-out ${activeTab === item.id ? 'opacity-100 transform-none' : 'opacity-80 translate-y-0.5'}`}>{item.label}</span>
             </button>
           ))}
         </div>
@@ -375,24 +379,55 @@ export default function App() {
 }
 
 // ==========================================
-// DASHBOARD VIEW
+// DASHBOARD VIEW (NOW WITH LIVE AI)
 // ==========================================
 function DashboardView({ analytics, transactions, selectedMonth, setActiveTab }) {
   const filteredTx = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
   const recentTransactions = filteredTx.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
   
-  let aiAlert = "Analyzing your data patterns...";
-  if (analytics.savingsRate > 40) aiAlert = "High liquidity detected. Excellent cycle for investments.";
-  else if (analytics.savingsRate < 10 && analytics.totalExpense > 0) aiAlert = "High burn rate detected this cycle. Monitor discretionary spends.";
-  else if (analytics.totalExpense === 0) aiAlert = "Your ledger is clean. Start logging to generate insights.";
-  else aiAlert = "Financial velocity is stable. Keep tracking to refine your AI model.";
+  // LIVE AI STRATEGY STATE
+  const [aiAlert, setAiAlert] = useState(() => sessionStorage.getItem('neofin-live-insight') || "Ready to analyze your financial velocity.");
+  const [isGeneratingAlert, setIsGeneratingAlert] = useState(false);
+
+  const generateSmartInsight = async (e) => {
+    if (e) e.stopPropagation(); // Prevent clicking the card from firing
+    setIsGeneratingAlert(true);
+    
+    if (transactions.length === 0) {
+      setAiAlert("Your ledger is clean. Log transactions to activate the intelligence engine.");
+      setIsGeneratingAlert(false);
+      return;
+    }
+
+    const spendData = Object.entries(analytics.currentMonthExpenses)
+      .map(([cat, amt]) => `${cat}: ₹${amt}`).join(', ');
+    
+    const prompt = `Analyze this user's current finances:
+    Income: ₹${analytics.totalIncome}
+    Expenses: ₹${analytics.totalExpense}
+    Savings Rate: ${analytics.savingsRate.toFixed(1)}%
+    Spends: ${spendData}
+
+    Write exactly ONE short, punchy sentence (under 15 words) giving direct financial advice or a sharp observation based on these numbers. Tone: Ruthless, elite Wall Street wealth manager. No pleasantries.`;
+
+    try {
+      const response = await callGeminiAPI(prompt, "You are a sharp financial AI.");
+      const cleanResponse = response.replace(/^["']|["']$/g, '').trim();
+      setAiAlert(cleanResponse);
+      sessionStorage.setItem('neofin-live-insight', cleanResponse);
+    } catch (error) {
+      setAiAlert("Financial velocity is stable. Keep tracking.");
+    } finally {
+      setIsGeneratingAlert(false);
+    }
+  };
 
   return (
     <div>
       <div className="mb-10 text-center stagger-1">
         <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-[0.4em] mb-4">Available Liquidity</p>
         <div className="flex items-center justify-center">
-          <span className="text-2xl font-medium text-gray-400 dark:text-gray-400 mr-3 mt-1">₹</span>
+          <span className="text-2xl font-medium text-gray-400 mr-3 mt-1">₹</span>
           <h2 className="text-6xl md:text-7xl font-black tracking-tighter text-gray-900 dark:text-white">
              <AnimatedNumber value={analytics.balance} />
           </h2>
@@ -423,7 +458,6 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </div>
       </div>
 
-      {/* Full-Width Investment Card */}
       <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2rem] p-6 shadow-sm transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 group cursor-default mb-8 stagger-2 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-purple-50 dark:bg-purple-500/10 rounded-2xl transition-transform duration-300 ease-out group-hover:scale-110">
@@ -436,14 +470,29 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </p>
       </div>
 
-      <div className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-xl dark:shadow-2xl dark:shadow-blue-900/20 cursor-pointer stagger-3" onClick={() => setActiveTab('ai')}>
-        <div className="absolute right-[-5%] top-[-10%] w-40 h-40 bg-white/10 rounded-full blur-3xl transition-transform duration-700 ease-out group-hover:scale-150"></div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-2.5 mb-4">
-            <Sparkles className="w-4 h-4 text-white" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Strategic Note</span>
+      {/* DYNAMIC AI STRATEGIC NOTE */}
+      <div className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-xl dark:shadow-2xl dark:shadow-blue-900/20 stagger-3">
+        <div className="absolute right-[-5%] top-[-10%] w-40 h-40 bg-white/10 rounded-full blur-3xl transition-transform duration-700 ease-out group-hover:scale-150 pointer-events-none"></div>
+        <div className="relative z-10 flex flex-col justify-center min-h-[80px]">
+          
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className={`w-4 h-4 text-white ${isGeneratingAlert ? 'animate-pulse' : ''}`} />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Live AI Strategy</span>
+            </div>
+            <button 
+              onClick={generateSmartInsight}
+              disabled={isGeneratingAlert}
+              className="p-2 bg-white/10 rounded-xl hover:bg-white/20 active:scale-95 transition-all duration-300 disabled:opacity-50"
+            >
+               <RefreshCw className={`w-3.5 h-3.5 text-white ${isGeneratingAlert ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-          <p className="text-lg font-bold leading-[1.3] mb-2 tracking-tight transition-transform duration-300 ease-out group-hover:translate-x-1">"{aiAlert}"</p>
+
+          <p className="text-lg font-bold leading-[1.3] mb-2 tracking-tight transition-opacity duration-300">
+            "{aiAlert}"
+          </p>
+          
         </div>
       </div>
 
@@ -485,6 +534,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
       <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm overflow-hidden transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 stagger-4">
         <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-900 dark:text-white mb-2">Spends Breakdown</h3>
         <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-6">Current Cycle</p>
+        
         <div className="flex flex-col items-center">
           <div className="relative h-56 w-full flex items-center justify-center mb-8 group cursor-pointer">
             <ResponsiveContainer width="100%" height="100%">
@@ -499,17 +549,19 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
               <span className="text-3xl font-black text-gray-900 dark:text-white">₹{analytics.totalExpense}</span>
             </div>
           </div>
-          <div className="w-full grid grid-cols-2 gap-y-4 gap-x-8 px-2">
+          
+          <div className="w-full grid grid-cols-2 gap-y-5 gap-x-8 px-2">
             {analytics.pieData.map((item, idx) => (
               <div key={idx} className="flex items-center gap-3 group cursor-default">
-                <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
+                <div className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-500">{item.name}</span>
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mt-0.5">₹{item.value}</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-500">{item.name}</span>
+                  <span className="text-sm font-bold text-gray-600 dark:text-gray-300 mt-0.5">₹{item.value}</span>
                 </div>
               </div>
             ))}
           </div>
+
         </div>
       </div>
 
@@ -805,8 +857,6 @@ function AIAssistantView({ transactions, analytics, profile }) {
     if (!text.trim() || isAiLoading) return;
     setAiMessages(prev => [...prev, { role: 'user', text }]); setAiInput(''); setIsAiLoading(true);
     try {
-      let liveWebData = "";
-      if (["market", "nifty", "stock", "news"].some(w => text.toLowerCase().includes(w))) liveWebData = await searchWeb(text);
       const finData = transactions.length > 0 ? transactions.map(t => `- ${t.type}: ₹${t.amount} on ${t.category}`).join('\n') : "No data.";
       const ctx = aiMessages.slice(-3).map(m => `${m.role}: ${m.text}`).join('\n');
       
@@ -821,9 +871,6 @@ function AIAssistantView({ transactions, analytics, profile }) {
 
       USER'S LIVE TRANSACTION DATA:
       ${finData}
-      
-      REAL-TIME INTERNET DATA:
-      ${liveWebData}
       
       CONVERSATION HISTORY:
       ${ctx}`;
