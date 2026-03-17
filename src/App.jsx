@@ -8,7 +8,8 @@ import {
   Sparkles, Moon, Sun, Plus, Search, Download, 
   Trash2, AlertCircle, ArrowUpRight, ArrowDownRight, 
   Wallet, Send, Bot, User, CheckCircle,
-  TrendingUp, Compass, Calendar, ChevronDown, Loader2, LogOut
+  TrendingUp, Compass, Calendar, ChevronDown, Loader2, LogOut,
+  Bell, Filter, ChevronRight
 } from 'lucide-react';
 
 import WelcomeScreen from './components/WelcomeScreen';
@@ -33,28 +34,14 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'neofin-prod'; 
 
-// --- MOCK DATA FOR NEW USERS ---
-const MOCK_TRANSACTIONS = [
-  { id: '1', date: '2026-03-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
-  { id: '2', date: '2026-03-05', amount: 2000, type: 'expense', category: 'Investing', description: 'Zerodha Fund Transfer' },
-  { id: '3', date: '2026-03-08', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent & Utilities' },
-  { id: '4', date: '2026-03-12', amount: 1000, type: 'expense', category: 'Investing', description: 'Groww SIP (Nifty 50)' },
-  { id: '5', date: '2026-03-15', amount: 450, type: 'expense', category: 'Food', description: 'Local Cafe' },
-];
-
+// --- INITIAL DATA ---
 const INITIAL_BUDGETS = { Housing: 9000, Food: 3500, Transport: 2000, Investing: 3000, Education: 1500, Entertainment: 1500 };
-const INITIAL_GOALS = [{ id: 'g1', name: 'Emergency Fund', target: 50000, current: 15000, color: '#10b981' }];
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#14b8a6', '#f43f5e'];
+const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#ec4899', '#14b8a6', '#f43f5e'];
 
 // --- UTILITY FUNCTIONS ---
 const formatCurrency = (amount) => {
   if (typeof amount !== 'number') return '₹0';
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
-};
-
-const formatDate = (dateString) => {
-  try { return new Date(dateString).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }); } 
-  catch (e) { return dateString; }
 };
 
 const getMonthYearString = (dateObj) => {
@@ -63,7 +50,6 @@ const getMonthYearString = (dateObj) => {
 
 const autoCategorize = (description) => {
   const desc = (description || '').toLowerCase();
-  
   if (desc.match(/zerodha|groww|upstox|angelone|indmoney|sip|mutual fund|stock/)) return 'Investing';
   if (desc.match(/course|udemy|coursera|books|fees|college|tuition/)) return 'Education';
   if (desc.match(/uber|ola|rapido|metro|irctc|redbus|bus|train|petrol|fuel/)) return 'Transport';
@@ -71,75 +57,53 @@ const autoCategorize = (description) => {
   if (desc.match(/netflix|spotify|movie|bookmyshow|hotstar|hostar|prime|jiocinema|jiohotstar|subscription/)) return 'Entertainment';
   if (desc.match(/amazon|flipkart|myntra|ajio|cloth|shoe/)) return 'Shopping';
   if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|broadband|recharge|jio fiber/)) return 'Housing';
-  
   return 'Other';
+};
+
+const formatToDateBlock = (dateString) => {
+  try {
+    const d = new Date(dateString);
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = d.toLocaleString('en-IN', { month: 'short' });
+    return { day, month };
+  } catch (e) {
+    return { day: '00', month: '---' };
+  }
 };
 
 // --- TAVILY SEARCH INTEGRATION ---
 const searchWeb = async (query) => {
   const tavilyKey = import.meta.env.VITE_TAVILY_API_KEY; 
-
-  if (!tavilyKey) {
-    console.error("Tavily key is missing!");
-    return "No live data available.";
-  }
-
+  if (!tavilyKey) return "No live data available.";
   try {
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: tavilyKey,
-        query: query,
-        search_depth: "basic", 
-        max_results: 3,
-      })
+      body: JSON.stringify({ api_key: tavilyKey, query: query, search_depth: "basic", max_results: 3 })
     });
-
     const data = await response.json();
-    
     if (!data.results || data.results.length === 0) return "No real-time data found.";
-
     return data.results.map(r => `Source: ${r.title}\nInfo: ${r.content}`).join('\n\n');
-  } catch (e) {
-    console.error("Tavily Search failed:", e);
-    return "Could not fetch real-time data.";
-  }
+  } catch (e) { return "Could not fetch real-time data."; }
 };
 
 // --- GEMINI API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY; 
-  
   try {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile", 
-        messages: [
-          { role: "system", content: systemInstruction },
-          { role: "user", content: prompt }
-        ],
+        messages: [{ role: "system", content: systemInstruction }, { role: "user", content: prompt }],
         temperature: 0.7
       })
     });
-
     const data = await response.json();
-    
-    if (data.error) {
-       console.error("Groq API Error:", data.error);
-       return `AI Error: ${data.error.message}`;
-    }
-    
+    if (data.error) return `AI Error: ${data.error.message}`;
     return data.choices[0].message.content;
-  } catch (error) {
-    console.error("Network Error:", error);
-    return "The AI Advisor is currently offline. Check your connection!";
-  }
+  } catch (error) { return "The AI Advisor is currently offline. Check your connection!"; }
 };
 
 // ==========================================
@@ -151,35 +115,25 @@ export default function App() {
   const [profile, setProfile] = useState(null); 
   const [isInitializingAccount, setIsInitializingAccount] = useState(false);
 
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('neofin-theme') !== 'light');
-  useEffect(() => {
-    if (darkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('neofin-theme', 'dark'); } 
-    else { document.documentElement.classList.remove('dark'); localStorage.setItem('neofin-theme', 'light'); }
-  }, [darkMode]);
-
+  const [activeTab, setActiveTab] = useState('home');
+  
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState({});
   const [goals, setGoals] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(getMonthYearString(new Date()));
 
-  // 1. CLEAN AUTH LISTENER
+  // AUTH LISTENER
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setAuthLoading(false);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); setAuthLoading(false); });
     return () => unsubscribe();
   }, []);
 
-  // 2. DATA FETCHING
+  // DATA FETCHING
   useEffect(() => {
     if (!user) return;
     const baseRef = `artifacts/${appId}/users/${user.uid}`;
-
     const unsubProfile = onSnapshot(doc(db, baseRef, 'profile', 'data'), (docSnap) => {
-      if (docSnap.exists()) setProfile(docSnap.data());
-      else setProfile(false); 
+      if (docSnap.exists()) setProfile(docSnap.data()); else setProfile(false); 
     });
     const unsubTx = onSnapshot(collection(db, baseRef, 'transactions'), (snapshot) => {
       setTransactions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -190,7 +144,6 @@ export default function App() {
     const unsubGoals = onSnapshot(collection(db, baseRef, 'goals'), (snapshot) => {
       setGoals(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
-
     return () => { unsubProfile(); unsubTx(); unsubBudgets(); unsubGoals(); };
   }, [user]);
 
@@ -202,7 +155,7 @@ export default function App() {
   }, [transactions]);
 
   const analytics = useMemo(() => {
-    let totalIncome = 0; let totalExpense = 0; let totalInvestedMonth = 0;
+    let totalIncome = 0; let totalExpense = 0;
     const categoryTotals = {}; const monthlyDataMap = {}; const currentMonthExpenses = {};
 
     const sortedTx = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -213,9 +166,10 @@ export default function App() {
       const tDateObj = new Date(t.date);
       const monthLabel = tDateObj.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 
-      if (!monthlyDataMap[tMonthKey]) monthlyDataMap[tMonthKey] = { name: monthLabel, income: 0, expense: 0, key: tMonthKey };
-      if (t.type === 'income') monthlyDataMap[tMonthKey].income += t.amount;
-      else monthlyDataMap[tMonthKey].expense += t.amount;
+      if (!monthlyDataMap[tMonthKey]) monthlyDataMap[tMonthKey] = { name: monthLabel, Income: 0, Expense: 0, key: tMonthKey };
+      
+      if (t.type === 'income') monthlyDataMap[tMonthKey].Income += t.amount;
+      else monthlyDataMap[tMonthKey].Expense += t.amount;
 
       if (selectedMonth === 'all' || selectedMonth === tMonthKey) {
         if (t.type === 'income') totalIncome += t.amount;
@@ -223,7 +177,6 @@ export default function App() {
           totalExpense += t.amount;
           currentMonthExpenses[t.category] = (currentMonthExpenses[t.category] || 0) + t.amount;
           categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
-          if (t.category === 'Investing') totalInvestedMonth += t.amount;
         }
       }
     });
@@ -232,462 +185,379 @@ export default function App() {
     const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
     const pieData = Object.keys(categoryTotals).map(key => ({ name: key, value: categoryTotals[key] })).sort((a, b) => b.value - a.value);
 
-    return { totalIncome, totalExpense, balance, savingsRate, totalInvestedMonth, pieData, monthlyTrendData: Object.values(monthlyDataMap), currentMonthExpenses };
+    return { totalIncome, totalExpense, balance, savingsRate, pieData, monthlyTrendData: Object.values(monthlyDataMap), currentMonthExpenses };
   }, [transactions, selectedMonth]);
 
-  // 3. SECURE PROFILE CREATION
   const handleCreateProfile = async (name) => {
     if (!name.trim()) return;
     const currentUser = auth.currentUser;
     if (!currentUser) return;
-    
     const baseRef = `artifacts/${appId}/users/${currentUser.uid}`;
-    
     try {
       const profileSnap = await getDoc(doc(db, baseRef, 'profile', 'data'));
-      
       if (!profileSnap.exists()) {
         await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
         await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
       }
-    } catch (e) { 
-      console.error("Failed to setup profile:", e); 
-    } finally { 
-      setIsInitializingAccount(false); 
-    }
+    } catch (e) { console.error("Failed to setup profile:", e); } 
+    finally { setIsInitializingAccount(false); }
   };
-  const handleLogout = () => { signOut(auth); };
 
-  // =========================================================
-  // THE NEW, BULLETPROOF "TRAFFIC COP" ROUTING LOGIC
-  // =========================================================
-  
+  const handleLogout = () => { if(window.confirm('Sign out of NeoFin?')) signOut(auth); };
+
+  // ROUTING
   if (authLoading || (user && profile === null && !isInitializingAccount)) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
+    return <div className="min-h-screen bg-[#02040A] flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
   }
 
   if (!user || profile === false || isInitializingAccount) {
-    return <OnboardingScreen onComplete={handleCreateProfile} onLoginStart={() => setIsInitializingAccount(true)} isLoading={isInitializingAccount} />;
+    const handleGoogleLogin = async () => {
+      try {
+        setIsInitializingAccount(true);
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        const firstName = (result.user.displayName || "there").split(' ')[0];
+        handleCreateProfile(firstName);
+      } catch (error) { setIsInitializingAccount(false); }
+    };
+    return <WelcomeScreen onLogin={handleGoogleLogin} />;
   }
 
-  const themeClass = darkMode ? 'dark' : '';
   const navItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-    { id: 'transactions', icon: Receipt, label: 'History' },
+    { id: 'home', icon: LayoutDashboard, label: 'Home' },
+    { id: 'tx', icon: Receipt, label: 'Ledger' },
     { id: 'budgets', icon: Activity, label: 'Budgets' },
     { id: 'goals', icon: Target, label: 'Goals' },
-    { id: 'ai', icon: Sparkles, label: 'AI Advisor' },
+    { id: 'ai', icon: Compass, label: 'Advisor' },
   ];
 
   return (
-    <div className={`min-h-screen font-sans transition-colors duration-200 ${themeClass}`}>
-      <div className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col md:flex-row pb-16 md:pb-0">
-        
-        {/* DESKTOP SIDEBAR */}
-        <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 fixed h-full z-40">
-          <div className="flex items-center justify-between p-6">
-            <div className="flex items-center space-x-3 text-blue-600 dark:text-blue-500">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg"><Compass className="w-6 h-6" /></div>
-              <span className="text-xl font-bold tracking-tight">NeoFin</span>
-            </div>
-          </div>
-
-          <div className="px-6 mb-4">
-            <div className="bg-gray-100 dark:bg-gray-800/50 rounded-xl p-3 flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                {profile?.name?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate text-gray-900 dark:text-white">Hi, {profile?.name}</p>
-                <button onClick={handleLogout} className="text-xs text-rose-500 hover:text-rose-600 font-medium">Sign Out</button>
-              </div>
-            </div>
-          </div>
-
-          <nav className="px-4 py-2 space-y-1 flex-1">
-            {navItems.map((item) => (
-              <button
-                key={item.id} onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                  activeTab === item.id ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-gray-100'
-                }`}
-              >
-                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-white' : ''}`} />
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </aside>
-
-        {/* MAIN CONTENT AREA */}
-        <main className="flex-1 flex flex-col min-w-0 md:ml-64 relative">
-          <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 md:px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white capitalize hidden md:block">
-                {navItems.find(n => n.id === activeTab)?.label}
-              </h1>
-              <div className="md:hidden flex items-center space-x-2 text-blue-600 dark:text-blue-500">
-                <Compass className="w-6 h-6" />
-                <span className="text-lg font-bold tracking-tight">NeoFin</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3">
-              <div className="relative group">
-                <select 
-                  value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="appearance-none bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 py-1.5 pl-3 pr-8 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                >
-                  <option value="all">All Time</option>
-                  {availableMonths.map(m => {
-                    const [year, month] = m.split('-');
-                    const date = new Date(year, month - 1);
-                    return <option key={m} value={m}>{date.toLocaleString('default', { month: 'short' })} {year}</option>;
-                  })}
-                </select>
-                <ChevronDown className="w-4 h-4 text-gray-500 absolute right-2.5 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-              </div>
-              <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-              <button 
-                onClick={() => { if(window.confirm('Are you sure you want to sign out?')) handleLogout(); }} 
-                className="md:hidden p-2 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-800/50 transition-colors"
-                title="Sign Out"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </header>
-
-          <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 custom-scrollbar bg-gray-50 dark:bg-gray-950">
-            {activeTab === 'dashboard' && <DashboardView analytics={analytics} transactions={transactions} selectedMonth={selectedMonth} />}
-            {activeTab === 'transactions' && <TransactionsView transactions={transactions} selectedMonth={selectedMonth} db={db} user={user} appId={appId} />}
-            {activeTab === 'budgets' && <BudgetsView budgets={budgets} currentExpenses={analytics.currentMonthExpenses} db={db} user={user} appId={appId} selectedMonth={selectedMonth} />}
-            {activeTab === 'goals' && <GoalsView goals={goals} db={db} user={user} appId={appId} />}
-            {activeTab === 'ai' && <AIAssistantView transactions={transactions} analytics={analytics} budgets={budgets} goals={goals} profile={profile} selectedMonth={selectedMonth} />}
-          </div>
-        </main>
-
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 z-50 px-2 pb-safe pt-2 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
-          <div className="flex justify-around items-center h-14">
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id} onClick={() => setActiveTab(item.id)}
-                  className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
-                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-                  }`}
-                >
-                  <item.icon className={`w-5 h-5 ${isActive ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-                  <span className="text-[10px] font-medium">{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-      </div>
+    <div className="min-h-screen bg-[#02040A] text-white font-sans selection:bg-blue-500/30 overflow-x-hidden pb-32 text-[15px]">
+      <div className="fixed inset-0 opacity-[0.02] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] z-0"></div>
       
+      <div className="relative z-10 max-w-xl mx-auto px-5 pt-8">
+        
+        {/* HEADER */}
+        <header className="flex justify-between items-center mb-10">
+          <div className="flex items-center gap-2.5">
+            <span className="text-3xl font-bold tracking-tight italic">NeoFin</span>
+            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-2 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={handleLogout} className="relative w-11 h-11 rounded-2xl bg-[#0D0D0D] border border-white/[0.05] flex items-center justify-center transition-all hover:bg-white/[0.02]">
+               <LogOut className="w-5 h-5 text-[#525252] hover:text-rose-500 transition-colors" />
+            </button>
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600/20 to-indigo-600/20 p-[1px]">
+              <div className="w-full h-full rounded-2xl bg-[#0D0D0D] overflow-hidden">
+                 <img src={user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`} alt="avatar" className="w-full h-full object-cover" />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* MONTH SELECTOR (Global) */}
+        <div className="flex justify-end mb-6">
+          <div className="bg-[#0D0D0D] border border-white/[0.05] rounded-xl px-3 py-1.5 flex items-center">
+             <Calendar className="w-4 h-4 text-[#525252] mr-2" />
+             <select 
+               value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
+               className="bg-transparent text-[11px] font-bold text-white uppercase tracking-widest outline-none appearance-none pr-4 cursor-pointer"
+             >
+               <option value="all" className="bg-[#0D0D0D] text-white">ALL TIME</option>
+               {availableMonths.map(m => (
+                 <option key={m} value={m} className="bg-[#0D0D0D] text-white">{m}</option>
+               ))}
+             </select>
+          </div>
+        </div>
+
+        {/* DYNAMIC VIEWS */}
+        {activeTab === 'home' && <DashboardView analytics={analytics} transactions={transactions} selectedMonth={selectedMonth} />}
+        {activeTab === 'tx' && <TransactionsView transactions={transactions} selectedMonth={selectedMonth} db={db} user={user} appId={appId} />}
+        {activeTab === 'budgets' && <BudgetsView budgets={budgets} currentExpenses={analytics.currentMonthExpenses} db={db} user={user} appId={appId} selectedMonth={selectedMonth} />}
+        {activeTab === 'goals' && <GoalsView goals={goals} db={db} user={user} appId={appId} />}
+        {activeTab === 'ai' && <AIAssistantView transactions={transactions} analytics={analytics} profile={profile} selectedMonth={selectedMonth} />}
+
+      </div>
+
+      {/* COMMANDER DOCK */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[94%] max-w-md z-50">
+        <div className="bg-[#0D0D0D]/95 backdrop-blur-3xl border border-white/[0.05] rounded-[2.5rem] p-1.5 flex items-center justify-between shadow-2xl shadow-black relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+          {navItems.map((item) => (
+            <button 
+              key={item.id}
+              onClick={() => setActiveTab(item.id)} 
+              className={`flex flex-col items-center justify-center flex-1 py-3 rounded-3xl transition-all duration-300 ${activeTab === item.id ? 'text-white' : 'text-[#525252] hover:text-white'}`}
+            >
+              <div className={`p-1.5 rounded-xl transition-all duration-500 mb-1 ${activeTab === item.id ? 'bg-blue-600/10 shadow-[0_0_20px_rgba(37,99,235,0.2)]' : ''}`}>
+                <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'stroke-[2.5px] text-blue-500' : 'stroke-[1.5px]'}`} />
+              </div>
+              <span className={`text-[8px] font-bold uppercase tracking-[0.15em] ${activeTab === item.id ? 'opacity-100' : 'opacity-40'}`}>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1A1A1A; border-radius: 4px; }
+        /* Fix recharts tooltip outline */
+        .recharts-tooltip-wrapper { outline: none !important; }
       `}} />
     </div>
   );
 }
 
 // ==========================================
-// ONBOARDING SCREEN (Landing Page Style)
-// ==========================================
-function OnboardingScreen({ onComplete, onLoginStart, isLoading }) {
-  const [isGreeting, setIsGreeting] = useState(false);
-  const [displayName, setDisplayName] = useState('');
-
-  const handleGoogleLogin = async () => {
-    try {
-      if (onLoginStart) onLoginStart();
-      const auth = getAuth();
-      const provider = new GoogleAuthProvider();
-      
-      const result = await signInWithPopup(auth, provider);
-      const fullName = result.user.displayName || "there";
-      const firstName = fullName.split(' ')[0];
-      setDisplayName(firstName);
-      
-      setIsGreeting(true);
-      setTimeout(() => { onComplete(firstName); }, 2000);
-    } catch (error) {
-      console.error("Google Login Error:", error);
-      alert("Sign in failed or was cancelled. Please try again.");
-    }
-  };
-
-  if (isGreeting || isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 p-6 transition-colors duration-200">
-        <div className="flex flex-col items-center animate-fade-in">
-          <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-6" />
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome, {displayName}.</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Preparing your secure workspace...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return <WelcomeScreen onLogin={handleGoogleLogin} />;
-}
-
-// ==========================================
 // DASHBOARD VIEW
 // ==========================================
 function DashboardView({ analytics, transactions, selectedMonth }) {
-  const filteredTx = selectedMonth === 'all' 
-    ? transactions 
-    : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
-    
-  const recentTransactions = filteredTx.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-  const monthText = selectedMonth === 'all' ? 'All Time' : 'This Month';
-
-  const statCards = [
-    { title: "Net Balance", value: analytics.balance, icon: Wallet, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/30", sub: monthText },
-    { title: "Inflow", value: analytics.totalIncome, icon: ArrowDownRight, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/30", sub: monthText },
-    { title: "Spends", value: analytics.totalExpense, icon: ArrowUpRight, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-100 dark:bg-rose-900/30", sub: monthText },
-    { title: "Invested", value: analytics.totalInvestedMonth, icon: TrendingUp, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", sub: monthText },
-  ];
+  const filteredTx = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
+  const recentTransactions = filteredTx.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
+  
+  // Smart AI Alert Logic
+  let aiAlert = "Analyzing your data patterns...";
+  if (analytics.savingsRate > 40) aiAlert = "High liquidity detected. Excellent cycle for investments.";
+  else if (analytics.savingsRate < 10 && analytics.totalExpense > 0) aiAlert = "High burn rate detected this cycle. Monitor discretionary spends.";
+  else if (analytics.totalExpense === 0) aiAlert = "Your ledger is clean. Start logging to generate insights.";
+  else aiAlert = "Financial velocity is stable. Keep tracking to refine your AI model.";
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {statCards.map((stat, i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 flex flex-col justify-between relative overflow-hidden">
-            <div className="flex justify-between items-start mb-2">
-              <div className={`p-2.5 rounded-xl ${stat.bg} relative z-10`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-            </div>
-            <div className="relative z-10">
-              <p className="text-xs md:text-sm font-medium text-gray-500 dark:text-gray-400 line-clamp-1">{stat.title}</p>
-              <h3 className="text-lg md:text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                {formatCurrency(stat.value)}
-              </h3>
-            </div>
+    <div className="animate-fade-in">
+      <div className="mb-10 text-center">
+        <p className="text-[10px] font-bold text-[#525252] uppercase tracking-[0.4em] mb-4">Available Liquidity</p>
+        <div className="flex items-center justify-center">
+          <span className="text-2xl font-medium text-[#525252] mr-3 mt-1">₹</span>
+          <h2 className="text-6xl md:text-7xl font-black tracking-tighter">{analytics.balance.toLocaleString('en-IN')}</h2>
+        </div>
+        <div className="flex justify-center gap-2 mt-8">
+          <div className="px-5 py-2.5 rounded-full bg-[#0D0D0D] border border-white/[0.05] flex items-center gap-2.5 shadow-sm">
+            <ArrowDownRight className={`w-3.5 h-3.5 ${analytics.savingsRate >= 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
+            <span className={`text-xs font-bold ${analytics.savingsRate >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{analytics.savingsRate.toFixed(1)}%</span>
           </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 lg:col-span-2">
-          <div className="flex justify-between items-center mb-6">
-             <h3 className="text-lg font-bold text-gray-900 dark:text-white">Historical Cash Flow</h3>
-             <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">All Time</span>
-          </div>
-          <div className="h-64 md:h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={analytics.monthlyTrendData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#374151" opacity={0.2} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} dx={-10} tickFormatter={(val) => `₹${val}`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', borderRadius: '0.75rem', color: '#fff' }}
-                  itemStyle={{ color: '#e5e7eb' }}
-                  formatter={(value) => formatCurrency(value)}
-                />
-                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                <Line type="monotone" name="Inflow" dataKey="income" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }} />
-                <Line type="monotone" name="Outflow" dataKey="expense" stroke="#ef4444" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: '#ef4444', stroke: '#fff', strokeWidth: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="px-5 py-2.5 rounded-full bg-[#0D0D0D] border border-white/[0.05] flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Savings Rate</span>
           </div>
         </div>
+      </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 flex flex-col">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Spends Breakdown</h3>
-          <p className="text-xs text-gray-500 mb-2">{monthText}</p>
-          <div className="flex-1 min-h-[220px] relative">
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="bg-[#0D0D0D] border border-white/[0.05] rounded-[2rem] p-6 shadow-sm hover:border-white/10 transition-colors group">
+          <p className="text-[10px] font-bold text-[#525252] uppercase tracking-widest mb-3">Total Inflow</p>
+          <p className="text-2xl font-bold">₹{analytics.totalIncome.toLocaleString('en-IN')}</p>
+        </div>
+        <div className="bg-[#0D0D0D] border border-white/[0.05] rounded-[2rem] p-6 shadow-sm hover:border-white/10 transition-colors group">
+          <p className="text-[10px] font-bold text-[#525252] uppercase tracking-widest mb-3">Total Spends</p>
+          <p className="text-2xl font-bold text-blue-500">₹{analytics.totalExpense.toLocaleString('en-IN')}</p>
+        </div>
+      </div>
+
+      <div className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-2xl shadow-blue-900/20">
+        <div className="absolute right-[-5%] top-[-10%] w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000"></div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-2.5 mb-4">
+            <Sparkles className="w-4 h-4 text-white" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Strategic Note</span>
+          </div>
+          <p className="text-lg font-bold leading-[1.3] mb-5 tracking-tight">"{aiAlert}"</p>
+        </div>
+      </div>
+
+      <div className="bg-[#0D0D0D] border border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm group">
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Cash Flow</h3>
+          <span className="text-[10px] font-bold text-[#525252] bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/5 uppercase tracking-widest">History</span>
+        </div>
+        <div className="h-48 w-full cursor-crosshair">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={analytics.monthlyTrendData}>
+              <XAxis dataKey="name" hide={true} />
+              <YAxis hide={true} />
+              <Tooltip cursor={false} content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-[#0D0D0D] border border-white/10 p-3 rounded-2xl shadow-2xl">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[#525252] mb-2">{label}</p>
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-emerald-400">Income: ₹{payload[0]?.value}</p>
+                          <p className="text-xs font-bold text-rose-400">Expense: ₹{payload[1]?.value}</p>
+                        </div>
+                      </div>
+                    );
+                  } return null;
+                }}
+              />
+              <Line type="monotone" name="Income" dataKey="Income" stroke="#10b981" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }} animationDuration={1500} />
+              <Line type="monotone" name="Expense" dataKey="Expense" stroke="#ef4444" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0, fill: '#ef4444' }} animationDuration={1500} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex justify-center gap-6 mt-6">
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Income</span></div>
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-rose-500"></div><span className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Expense</span></div>
+        </div>
+      </div>
+
+      <div className="bg-[#0D0D0D] border border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm overflow-hidden transition-all hover:border-white/10">
+        <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white mb-2">Spends Breakdown</h3>
+        <p className="text-[10px] font-bold text-[#525252] uppercase tracking-widest mb-6">Current Cycle</p>
+        <div className="flex flex-col items-center">
+          <div className="relative h-56 w-full flex items-center justify-center mb-8">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={analytics.pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                  {analytics.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                <Pie data={analytics.pieData} innerRadius={70} outerRadius={90} paddingAngle={8} dataKey="value" stroke="none" animationDuration={1200}>
+                  {analytics.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} className="hover:opacity-70 outline-none" />)}
                 </Pie>
-                <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ borderRadius: '10px' }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Total Spent</span>
-              <span className="font-bold text-gray-900 dark:text-white">{formatCurrency(analytics.totalExpense)}</span>
+              <span className="text-[10px] font-bold text-[#525252] uppercase tracking-widest mb-1">Total Spends</span>
+              <span className="text-3xl font-black text-white">₹{analytics.totalExpense}</span>
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-2 justify-center">
-             {analytics.pieData.slice(0, 4).map((entry, idx) => (
-               <div key={idx} className="flex items-center text-xs text-gray-600 dark:text-gray-300">
-                 <span className="w-2.5 h-2.5 rounded-full mr-1.5" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span>
-                 {entry.name}
-               </div>
-             ))}
-             {analytics.pieData.length === 0 && <span className="text-xs text-gray-400">No data for {monthText}</span>}
+          <div className="w-full grid grid-cols-2 gap-y-4 gap-x-8 px-2">
+            {analytics.pieData.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-white tracking-wide">{item.name}</span>
+                  <span className="text-[10px] font-bold text-[#525252] uppercase">₹{item.value}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 md:p-6 shadow-sm border border-gray-100 dark:border-gray-700/50 mb-4 md:mb-0">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Log ({monthText})</h3>
-        </div>
-        <div className="space-y-3">
-          {recentTransactions.map(tx => (
-            <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-700/50">
-              <div className="flex items-center space-x-3 md:space-x-4">
-                <div className={`p-2.5 md:p-3 rounded-full shrink-0 ${
-                    tx.type === 'income' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' 
-                    : tx.category === 'Investing' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
-                    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                  }`}>
-                  {tx.type === 'income' ? <ArrowDownRight className="w-4 h-4 md:w-5 md:h-5" /> 
-                   : tx.category === 'Investing' ? <TrendingUp className="w-4 h-4 md:w-5 md:h-5" /> 
-                   : <Receipt className="w-4 h-4 md:w-5 md:h-5" />}
+      <div className="flex items-center justify-between mb-4 px-2">
+        <h3 className="text-xs font-black uppercase tracking-[0.4em] text-[#525252]">Journal</h3>
+      </div>
+      <div className="space-y-3">
+        {recentTransactions.map((tx) => {
+          const { day, month } = formatToDateBlock(tx.date);
+          return (
+            <div key={tx.id} className="flex items-center justify-between p-5 bg-[#0D0D0D] border border-white/[0.03] rounded-3xl group transition-all">
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-center justify-center bg-[#151515] w-12 h-12 rounded-2xl border border-white/5 shrink-0 shadow-inner">
+                  <span className="text-[10px] font-bold text-[#525252] uppercase leading-none mb-1">{month}</span>
+                  <span className="text-sm font-black text-white leading-none">{day}</span>
                 </div>
                 <div>
-                  <p className="font-semibold text-sm md:text-base text-gray-900 dark:text-white line-clamp-1">{tx.description}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(tx.date)} • {tx.category}</p>
+                  <h4 className="text-sm font-bold text-white tracking-wide line-clamp-1">{tx.description}</h4>
+                  <p className="text-[10px] font-bold text-[#525252] uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
                 </div>
               </div>
-              <span className={`font-bold text-sm md:text-base whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-gray-900 dark:text-white'}`}>
-                {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
+              <span className={`text-sm font-black whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-white'}`}>
+                {tx.type === 'income' ? '+' : '-'}₹{tx.amount}
               </span>
             </div>
-          ))}
-          {recentTransactions.length === 0 && (
-            <div className="text-center text-gray-500 py-6">No transactions found for {monthText}.</div>
-          )}
-        </div>
+          );
+        })}
+        {recentTransactions.length === 0 && <p className="text-center text-[#525252] text-sm py-4">No data to display.</p>}
       </div>
     </div>
   );
 }
 
 // ==========================================
-// TRANSACTIONS VIEW
+// TRANSACTIONS VIEW (LEDGER)
 // ==========================================
 function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterCategory, setFilterCategory] = useState('All');
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({ type: 'expense', amount: '', date: new Date().toISOString().split('T')[0], description: '', category: 'Other' });
 
-  const baseTx = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
-  const categories = ['All', ...new Set(baseTx.map(t => t.category))];
-
-  const filteredData = baseTx.filter(t => {
-    const matchesSearch = (t.description || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCat = filterCategory === 'All' || t.category === filterCategory;
-    return matchesSearch && matchesCat;
-  }).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  const handleExportCSV = () => {
-    const csvContent = "data:text/csv;charset=utf-8," + "Date,Description,Category,Type,Amount\n" + filteredData.map(e => `${e.date},"${e.description}",${e.category},${e.type},${e.amount}`).join("\n");
-    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `neofin_tx_${selectedMonth}.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  };
+  const filteredData = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
+  const sortedData = [...filteredData].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const handleAddTransaction = async (e) => {
     e.preventDefault();
     if (!user || !formData.amount || !formData.description) return;
-    
     let finalCategory = formData.category;
-    
     if (finalCategory === 'Other') {
-      if (formData.type === 'income') {
-        finalCategory = 'Income';
-      } else {
-        finalCategory = autoCategorize(formData.description);
-      }
+      if (formData.type === 'income') finalCategory = 'Income';
+      else finalCategory = autoCategorize(formData.description);
     }
-
     const newId = Date.now().toString();
     try {
       await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', newId), { 
-        id: newId, 
-        ...formData, 
-        amount: parseFloat(formData.amount), 
-        category: finalCategory 
+        id: newId, ...formData, amount: parseFloat(formData.amount), category: finalCategory 
       });
       setShowAddForm(false); 
       setFormData({ type: 'expense', amount: '', date: new Date().toISOString().split('T')[0], description: '', category: 'Other' });
-    } catch (e) { console.error("Error adding:", e); }
+    } catch (e) { console.error(e); }
   };
 
   const handleDelete = async (id) => {
-    if(!user) return;
+    if(!user || !window.confirm("Delete entry?")) return;
     try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id)); } catch(e) {}
   };
 
   return (
-    <div className="space-y-6 animate-fade-in mb-6 md:mb-0">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-        <div className="flex flex-col sm:flex-row items-center w-full md:w-auto gap-2">
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder={`Search...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm" />
-          </div>
-          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full sm:w-auto px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm">
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
-        <div className="flex items-center space-x-2 w-full md:w-auto">
-          <button onClick={handleExportCSV} className="flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium">
-            <Download className="w-4 h-4" /> <span>CSV</span>
-          </button>
-          <button onClick={() => setShowAddForm(!showAddForm)} className="flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all text-sm font-medium">
-            <Plus className="w-4 h-4" /> <span>Add</span>
-          </button>
-        </div>
+    <div className="animate-fade-in">
+      <div className="flex items-center justify-between mb-8 px-2">
+        <h2 className="text-2xl font-black tracking-tight">Ledger</h2>
+        <button onClick={() => setShowAddForm(!showAddForm)} className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+          <Plus className="w-5 h-5 text-white" />
+        </button>
       </div>
 
       {showAddForm && (
-        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 animate-fade-in relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 bg-blue-500 h-full"></div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center"><Receipt className="w-5 h-5 mr-2 text-blue-500" /> Record Entry</h3>
-          <form onSubmit={handleAddTransaction} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">Type</label><select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm"><option value="expense">Expense</option><option value="income">Income</option></select></div>
-            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">Amount (₹)</label><input type="number" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0" className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" /></div>
-            <div className="space-y-1 lg:col-span-2"><label className="text-xs font-semibold text-gray-500 uppercase">Description</label><input type="text" required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="e.g., Zomato, Rent" className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" /></div>
-            <div className="space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase">Date</label><input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 dark:text-white outline-none text-sm" /></div>
-            <div className="lg:col-span-5 flex justify-end space-x-3 mt-2">
-               <button type="button" onClick={() => setShowAddForm(false)} className="px-4 md:px-5 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">Cancel</button>
-               <button type="submit" className="px-4 md:px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md transition-colors flex items-center">Save <CheckCircle className="w-4 h-4 ml-2 hidden sm:block" /></button>
+        <div className="bg-[#0D0D0D] border border-white/[0.05] p-6 rounded-[2rem] shadow-2xl mb-8">
+          <h3 className="text-sm font-bold text-white mb-6 uppercase tracking-widest">New Entry</h3>
+          <form onSubmit={handleAddTransaction} className="space-y-4">
+            <div className="flex gap-4">
+               <div className="flex-1 space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Type</label>
+                 <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-sm text-white">
+                   <option value="expense">Expense</option><option value="income">Income</option>
+                 </select>
+               </div>
+               <div className="flex-1 space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Amount</label>
+                 <input type="number" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0" className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-sm text-white" />
+               </div>
+            </div>
+            <div className="space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Description</label>
+              <input type="text" required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="e.g., Rent, Coffee" className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-sm text-white" />
+            </div>
+            <div className="space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Date</label>
+              <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-sm text-white" style={{colorScheme: 'dark'}} />
+            </div>
+            <div className="flex gap-3 pt-2">
+               <button type="button" onClick={() => setShowAddForm(false)} className="flex-1 py-3 bg-[#151515] text-white rounded-xl text-xs font-bold uppercase tracking-widest">Cancel</button>
+               <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest">Save</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider border-b border-gray-200 dark:border-gray-800">
-                <th className="p-4 font-semibold">Details</th><th className="p-4 font-semibold hidden md:table-cell">Category</th><th className="p-4 font-semibold text-right">Amount</th><th className="p-4 font-semibold text-center w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {filteredData.map(tx => (
-                <tr key={tx.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors group">
-                  <td className="p-4"><p className="text-sm font-medium text-gray-900 dark:text-white">{tx.description}</p><p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(tx.date)} <span className="md:hidden">• {tx.category}</span></p></td>
-                  <td className="p-4 hidden md:table-cell"><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] md:text-xs font-medium ${tx.category === 'Investing' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}`}>{tx.category}</span></td>
-                  <td className={`p-4 text-sm font-bold text-right whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-gray-900 dark:text-white'}`}>{tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}</td>
-                  <td className="p-4 text-center"><button onClick={() => handleDelete(tx.id)} className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors md:opacity-0 md:group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button></td>
-                </tr>
-              ))}
-              {filteredData.length === 0 && <tr><td colSpan="4" className="p-8 text-center text-gray-500">No transactions found.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+      <div className="space-y-3">
+        {sortedData.map(tx => {
+          const { day, month } = formatToDateBlock(tx.date);
+          return (
+            <div key={tx.id} className="flex items-center justify-between p-5 bg-[#0D0D0D] border border-white/[0.03] rounded-3xl group">
+              <div className="flex items-center gap-4">
+                <div className="flex flex-col items-center justify-center bg-[#151515] w-12 h-12 rounded-2xl border border-white/5 shrink-0">
+                  <span className="text-[10px] font-bold text-[#525252] uppercase leading-none mb-1">{month}</span>
+                  <span className="text-sm font-black text-white leading-none">{day}</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white tracking-wide">{tx.description}</h4>
+                  <p className="text-[10px] font-bold text-[#525252] uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-black whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-white'}`}>
+                  {tx.type === 'income' ? '+' : '-'}₹{tx.amount}
+                </span>
+                <button onClick={() => handleDelete(tx.id)} className="text-[#525252] hover:text-rose-500 transition-colors p-1"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            </div>
+          );
+        })}
+        {sortedData.length === 0 && <p className="text-center text-[#525252] text-sm py-10">No entries for this period.</p>}
       </div>
     </div>
   );
@@ -703,37 +573,40 @@ function BudgetsView({ budgets, currentExpenses, db, user, appId, selectedMonth 
   };
 
   return (
-    <div className="space-y-6 animate-fade-in mb-6 md:mb-0">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-2">
-        <div><h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Budgets</h2><p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-1">Showing spent for {selectedMonth}</p></div>
-      </div>
+    <div className="animate-fade-in space-y-6">
+      <div className="mb-8 px-2"><h2 className="text-2xl font-black tracking-tight">Budgets</h2></div>
+      {Object.keys(budgets).map(category => {
+        const limit = budgets[category] || 0; const spent = currentExpenses[category] || 0;
+        const percentage = limit > 0 ? Math.min((spent / limit) * 100, 100) : (spent > 0 ? 100 : 0);
+        let statusColor = percentage > 75 ? "bg-[#f59e0b]" : "bg-[#10b981]"; 
+        let textColor = percentage > 75 ? "text-[#f59e0b]" : "text-[#10b981]";
+        if (percentage >= 100) { statusColor = "bg-[#ef4444]"; textColor = "text-[#ef4444]"; }
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-        {Object.keys(budgets).map(category => {
-          const limit = budgets[category] || 0; const spent = currentExpenses[category] || 0;
-          const percentage = limit > 0 ? Math.min((spent / limit) * 100, 100) : (spent > 0 ? 100 : 0);
-          let statusColor = percentage > 75 ? "bg-amber-500" : "bg-emerald-500"; let textColor = percentage > 75 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
-          if (percentage >= 100) { statusColor = "bg-rose-500"; textColor = "text-rose-600 dark:text-rose-400"; }
-          if (category === 'Investing') { statusColor = "bg-purple-500"; textColor = "text-purple-600 dark:text-purple-400"; }
-
-          return (
-            <div key={category} className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center space-x-3"><div className={`p-2 rounded-lg bg-gray-100 dark:bg-gray-700`}>{category === 'Investing' ? <TrendingUp className="w-5 h-5 text-gray-600 dark:text-gray-300" /> : <Activity className="w-5 h-5 text-gray-600 dark:text-gray-300" />}</div><h3 className="font-bold text-gray-900 dark:text-white">{category}</h3></div>
-                <div className="text-right"><span className={`text-sm font-bold ${textColor}`}>{percentage.toFixed(0)}%</span><p className="text-[10px] uppercase text-gray-500 tracking-wider">Used</p></div>
-              </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mb-4 overflow-hidden"><div className={`h-full rounded-full ${statusColor} transition-all duration-500`} style={{ width: `${percentage}%` }}></div></div>
-              <div className="flex justify-between items-end text-sm">
-                <div><p className="text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider mb-1">Spent</p><p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(spent)}</p></div>
-                <div className="text-right">
-                  <p className="text-gray-500 dark:text-gray-400 text-[10px] uppercase tracking-wider mb-1">Monthly Limit</p>
-                  <div className="flex items-center border-b border-gray-200 dark:border-gray-600 focus-within:border-blue-500"><span className="text-gray-500 mr-1 text-xs">₹</span><input type="number" value={limit} onChange={(e) => handleUpdateBudget(category, e.target.value)} className="w-16 md:w-20 bg-transparent outline-none font-semibold text-gray-900 dark:text-white text-right" /></div>
-                </div>
+        return (
+          <div key={category} className="bg-[#0D0D0D] p-6 rounded-[2rem] border border-white/[0.05]">
+            <div className="flex justify-between items-start mb-6">
+              <h3 className="font-bold text-white text-lg tracking-wide">{category}</h3>
+              <div className="text-right">
+                <span className={`text-sm font-black ${textColor}`}>{percentage.toFixed(0)}%</span>
+                <p className="text-[9px] uppercase tracking-[0.2em] text-[#525252]">Consumed</p>
               </div>
             </div>
-          );
-        })}
-      </div>
+            <div className="w-full bg-[#1A1A1A] rounded-full h-1.5 mb-6 overflow-hidden">
+              <div className={`h-full rounded-full ${statusColor} transition-all duration-1000`} style={{ width: `${percentage}%` }}></div>
+            </div>
+            <div className="flex justify-between items-end">
+              <div>
+                <p className="text-[9px] uppercase tracking-[0.2em] text-[#525252] mb-1">Spent</p>
+                <p className="font-bold text-white text-sm">₹{spent.toLocaleString('en-IN')}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] uppercase tracking-[0.2em] text-[#525252] mb-1">Limit</p>
+                <div className="flex items-center justify-end"><span className="text-[#525252] mr-1 text-xs">₹</span><input type="number" value={limit} onChange={(e) => handleUpdateBudget(category, e.target.value)} className="w-16 bg-transparent outline-none font-bold text-white text-sm text-right" /></div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -751,42 +624,38 @@ function GoalsView({ goals, db, user, appId }) {
     const newId = Date.now().toString();
     try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', newId), { ...newGoal, id: newId, target: parseFloat(newGoal.target), current: parseFloat(newGoal.current) }); setShowAdd(false); setNewGoal({ name: '', target: '', current: '0', color: '#3b82f6' }); } catch(err) {}
   };
-
-  const addFunds = async (goal, amount) => {
-    if(!user) return;
-    try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', goal.id), { ...goal, current: Math.min(goal.target, goal.current + amount) }); } catch(e){}
-  };
-
-  const deleteGoal = async (id) => { if(!user) return; try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', id)); } catch(e){} }
+  const addFunds = async (goal, amount) => { if(!user) return; try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', goal.id), { ...goal, current: Math.min(goal.target, goal.current + amount) }); } catch(e){} };
+  const deleteGoal = async (id) => { if(!user || !window.confirm("Delete goal?")) return; try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', id)); } catch(e){} }
 
   return (
-    <div className="space-y-6 animate-fade-in mb-6 md:mb-0">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 rounded-3xl shadow-lg text-white gap-4">
-        <div><h2 className="text-2xl md:text-3xl font-bold mb-1 md:mb-2 flex items-center"><Target className="w-6 h-6 mr-3 opacity-80" /> Savings Goals</h2></div>
-        <button onClick={() => setShowAdd(!showAdd)} className="bg-white text-blue-600 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-blue-50 transition-colors flex items-center justify-center sm:shrink-0 w-full sm:w-auto"><Plus className="w-5 h-5 mr-2" /> New Goal</button>
+    <div className="animate-fade-in space-y-6">
+      <div className="flex items-center justify-between mb-8 px-2">
+        <h2 className="text-2xl font-black tracking-tight">Targets</h2>
+        <button onClick={() => setShowAdd(!showAdd)} className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"><Plus className="w-5 h-5 text-white" /></button>
       </div>
-
       {showAdd && (
-        <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-           <form onSubmit={handleAdd} className="flex flex-col md:flex-row gap-4 items-end">
-             <div className="flex-1 w-full space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Goal Name</label><input required type="text" value={newGoal.name} onChange={e=>setNewGoal({...newGoal, name: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl outline-none dark:text-white text-sm" /></div>
-             <div className="w-full md:w-48 space-y-1"><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Target (₹)</label><input required type="number" value={newGoal.target} onChange={e=>setNewGoal({...newGoal, target: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl outline-none dark:text-white text-sm" /></div>
-             <button type="submit" className="w-full md:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors text-sm">Save</button>
+        <div className="bg-[#0D0D0D] border border-white/[0.05] p-6 rounded-[2rem] shadow-2xl mb-8">
+           <form onSubmit={handleAdd} className="space-y-4">
+             <div className="space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Goal Name</label><input required type="text" value={newGoal.name} onChange={e=>setNewGoal({...newGoal, name: e.target.value})} className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-white text-sm" /></div>
+             <div className="space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Target Amount (₹)</label><input required type="number" value={newGoal.target} onChange={e=>setNewGoal({...newGoal, target: e.target.value})} className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-white text-sm" /></div>
+             <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest mt-2">Create Target</button>
            </form>
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      <div className="space-y-4">
         {goals.map(goal => {
           const percent = goal.target > 0 ? Math.min((goal.current / goal.target) * 100, 100) : 0;
           return (
-            <div key={goal.id} className="bg-white dark:bg-gray-800 p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 group">
-              <div className="flex justify-between items-start mb-4"><h3 className="text-lg font-bold text-gray-900 dark:text-white">{goal.name}</h3><span className="text-xl font-black" style={{ color: goal.color }}>{percent.toFixed(0)}%</span></div>
-              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 mb-2 overflow-hidden shadow-inner"><div className="h-full rounded-full transition-all duration-1000 ease-out relative overflow-hidden" style={{ width: `${percent}%`, backgroundColor: goal.color }}></div></div>
-              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-5"><span>{formatCurrency(goal.current)} saved</span><span>{formatCurrency(goal.target)} target</span></div>
-              <div className="flex space-x-2">
-                <button onClick={() => addFunds(goal, 500)} className="flex-1 py-2 text-xs font-medium bg-gray-50 hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors">+ ₹500</button>
-                <button onClick={() => deleteGoal(goal.id)} className="px-3 py-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+            <div key={goal.id} className="bg-[#0D0D0D] border border-white/[0.05] p-6 rounded-[2rem]">
+              <div className="flex justify-between items-start mb-5">
+                <h3 className="text-lg font-bold text-white">{goal.name}</h3>
+                <span className="text-xl font-black" style={{ color: goal.color }}>{percent.toFixed(0)}%</span>
+              </div>
+              <div className="w-full bg-[#1A1A1A] rounded-full h-1.5 mb-5 overflow-hidden"><div className="h-full rounded-full transition-all duration-1000" style={{ width: `${percent}%`, backgroundColor: goal.color }}></div></div>
+              <div className="flex justify-between text-[10px] font-bold text-[#525252] uppercase tracking-widest mb-6"><span>₹{goal.current} Saved</span><span>₹{goal.target} Target</span></div>
+              <div className="flex gap-3">
+                <button onClick={() => addFunds(goal, 500)} className="flex-1 py-3 text-xs font-bold uppercase tracking-widest bg-[#151515] text-white rounded-xl hover:bg-[#202020] transition-colors">+ ₹500</button>
+                <button onClick={() => deleteGoal(goal.id)} className="px-4 bg-[#151515] text-[#525252] hover:text-rose-500 rounded-xl transition-colors"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           )
@@ -799,154 +668,55 @@ function GoalsView({ goals, db, user, appId }) {
 // ==========================================
 // AI ASSISTANT VIEW
 // ==========================================
-function AIAssistantView({ transactions, analytics, budgets, goals, profile, selectedMonth }) {
+function AIAssistantView({ transactions, analytics, profile, selectedMonth }) {
   const [aiMessages, setAiMessages] = useState(() => {
     const saved = localStorage.getItem('neofin-ai-chats');
-    return saved ? JSON.parse(saved) : [{ 
-      role: 'ai', 
-      text: `Hey ${profile?.name}! 👋 I'm your NeoFin Wealth Advisor. I'm currently analyzing your data for ${selectedMonth === 'all' ? 'All Time' : selectedMonth}.` 
-    }];
+    return saved ? JSON.parse(saved) : [{ role: 'ai', text: `Systems online. How can I assist with your portfolio today, ${profile?.name}?` }];
   });
+  const [aiInput, setAiInput] = useState(''); const [isAiLoading, setIsAiLoading] = useState(false); const messagesEndRef = useRef(null);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); localStorage.setItem('neofin-ai-chats', JSON.stringify(aiMessages)); }, [aiMessages]);
 
-  const [aiInput, setAiInput] = useState(''); 
-  const [isAiLoading, setIsAiLoading] = useState(false); 
-  const messagesEndRef = useRef(null);
-
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiMessages]);
-
-  useEffect(() => {
-    localStorage.setItem('neofin-ai-chats', JSON.stringify(aiMessages));
-  }, [aiMessages]);
-
-  const handleSendAiMessage = async (text) => {
+  const handleSend = async (text) => {
     if (!text.trim() || isAiLoading) return;
-
-    const userMsg = { role: 'user', text };
-    setAiMessages(prev => [...prev, userMsg]);
-    setAiInput('');
-    setIsAiLoading(true);
-
+    setAiMessages(prev => [...prev, { role: 'user', text }]); setAiInput(''); setIsAiLoading(true);
     try {
-      const keywords = ["market", "nifty", "stock", "price", "sensex", "gold", "today", "news"];
-      const needsSearch = keywords.some(word => text.toLowerCase().includes(word));
-      let liveWebData = "No live web data needed.";
-      if (needsSearch) {
-        liveWebData = await searchWeb(text); 
-      }
-
-      const financialData = transactions && transactions.length > 0 
-        ? transactions.map(t => `- ${t.type.toUpperCase()}: ₹${t.amount} on ${t.category} (${t.title || 'No note'})`).join('\n')
-        : "The user has no transactions logged yet.";
-
-      const historyContext = aiMessages.slice(-4)
-        .map(m => `${m.role === 'ai' ? 'Assistant' : 'User'}: ${m.text}`)
-        .join('\n');
-
-      const systemPrompt = `You are NeoFin AI, an elite Indian wealth manager and financial strategist.
-      You have direct access to the user's live financial data. Use it to give highly personalized, accurate advice.
+      let liveWebData = "";
+      if (["market", "nifty", "stock", "news"].some(w => text.toLowerCase().includes(w))) liveWebData = await searchWeb(text);
+      const finData = transactions.length > 0 ? transactions.map(t => `- ${t.type}: ₹${t.amount} on ${t.category}`).join('\n') : "No data.";
+      const ctx = aiMessages.slice(-3).map(m => `${m.role}: ${m.text}`).join('\n');
       
-      TONE & STYLE RULES:
-      1. Be sharp, concise, and highly professional. Speak like a top-tier fintech advisor.
-      2. NEVER explain basic arithmetic step-by-step. Do not say "I will subtract X from Y." Just give the final numbers confidently.
-      3. Treat the user like a serious investor, not a child.
-      4. Always pivot from just giving the number to offering a smart, actionable financial insight (e.g., SIPs, market opportunities, saving strategies).
-
-      USER'S LIVE TRANSACTION DATA:
-      ${financialData}
+      const prompt = `You are NeoFin AI, an elite wealth advisor. TONE: Sharp, professional, concise. No fluff. No step-by-step math explanations. Give final numbers. 
+      USER DATA: ${finData}
+      WEB: ${liveWebData}
+      HISTORY: ${ctx}`;
       
-      REAL-TIME INTERNET DATA:
-      ${liveWebData}
-      
-      CONVERSATION HISTORY:
-      ${historyContext}`;
-      
-      const response = await callGeminiAPI(text, systemPrompt);
-      
-      setAiMessages(prev => [...prev, { role: 'ai', text: response }]);
-    } catch (error) {
-      console.error("AI Error:", error);
-      setAiMessages(prev => [...prev, { role: 'ai', text: "My connection dropped. Ask me again?" }]);
-    } finally {
-      setIsAiLoading(false);
-    }
+      const res = await callGeminiAPI(text, prompt);
+      setAiMessages(prev => [...prev, { role: 'ai', text: res }]);
+    } catch (e) { setAiMessages(prev => [...prev, { role: 'ai', text: "Connection error." }]); } 
+    finally { setIsAiLoading(false); }
   };
-
-  const handleClearChat = () => {
-    if (window.confirm("Are you sure you want to delete all messages?")) {
-      const welcomeMsg = [{ 
-        role: 'ai', 
-        text: `Chat cleared! How can I help you now, ${profile?.name}?` 
-      }];
-      setAiMessages(welcomeMsg);
-      localStorage.removeItem('neofin-ai-chats');
-    }
-  };
-
-  const suggestedPrompts = [`Analyze my spends`, "Am I saving enough?", "How to start a ₹500 SIP?"];
 
   return (
-    <div className="h-[calc(100vh-12rem)] md:h-[calc(100vh-8rem)] flex flex-col animate-fade-in bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/50 overflow-hidden relative">
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 md:p-4 text-white flex items-center justify-between shadow-sm z-10">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-            <Bot className="w-5 h-5 md:w-6 md:h-6" />
-          </div>
-          <div>
-            <h2 className="font-bold text-base md:text-lg">NeoFin Advisor</h2>
-          </div>
-        </div>
-        <button onClick={handleClearChat} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-          <Trash2 className="w-4 h-4 text-white/80" />
-        </button>
+    <div className="h-[calc(100vh-14rem)] flex flex-col animate-fade-in bg-[#0D0D0D] border border-white/[0.05] rounded-[2.5rem] overflow-hidden relative shadow-2xl shadow-black">
+      <div className="bg-[#151515] p-5 flex items-center justify-between border-b border-white/[0.05]">
+        <div className="flex items-center gap-3"><Sparkles className="w-5 h-5 text-blue-500" /><h2 className="font-black text-sm uppercase tracking-widest text-white">NeoFin Intelligence</h2></div>
+        <button onClick={() => setAiMessages([{ role: 'ai', text: "Memory cleared. Standing by." }])} className="text-[#525252] hover:text-white transition-colors"><Trash2 className="w-4 h-4" /></button>
       </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 md:space-y-6 custom-scrollbar bg-gray-50/50 dark:bg-gray-900/50">
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
         {aiMessages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`flex max-w-[88%] md:max-w-[75%] space-x-2 md:space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${msg.role === 'user' ? 'bg-blue-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                {msg.role === 'user' ? <User className="w-3 h-3 md:w-4 md:h-4 text-white" /> : <Sparkles className="w-3 h-3 md:w-4 md:h-4" />}
-              </div>
-              <div className={`p-3 md:p-4 rounded-2xl shadow-sm ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-sm'}`}>
-                <div className="text-xs md:text-sm whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: (msg.text || '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-              </div>
+            <div className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-[#151515] text-[#A3A3A3] border border-white/[0.05] rounded-tl-sm'}`}>
+               <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>') }} />
             </div>
           </div>
         ))}
-        {isAiLoading && (
-          <div className="flex justify-start">
-            <div className="flex space-x-2 md:space-x-3">
-              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                <Sparkles className="w-3 h-3 md:w-4 md:h-4 animate-spin" />
-              </div>
-            </div>
-          </div>
-        )}
+        {isAiLoading && <div className="flex justify-start"><div className="w-8 h-8 rounded-full bg-[#151515] flex items-center justify-center"><Sparkles className="w-4 h-4 text-blue-500 animate-spin" /></div></div>}
         <div ref={messagesEndRef} />
       </div>
-
-      <div className="p-3 md:p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
-        {aiMessages.length === 1 && (
-          <div className="flex overflow-x-auto gap-2 pb-3 mb-1 custom-scrollbar hide-scrollbar-mobile">
-            {suggestedPrompts.map((p, i) => (
-              <button key={i} onClick={() => handleSendAiMessage(p)} className="whitespace-nowrap px-3 py-1.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs rounded-full border border-gray-200 dark:border-gray-600 transition-colors">
-                {p}
-              </button>
-            ))}
-          </div>
-        )}
-        <form onSubmit={(e) => { e.preventDefault(); handleSendAiMessage(aiInput); }} className="relative flex items-center">
-          <input 
-            type="text" 
-            value={aiInput} 
-            onChange={(e) => setAiInput(e.target.value)} 
-            placeholder="Ask a question..." 
-            className="w-full pl-4 pr-12 py-3 md:py-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white text-sm transition-shadow" 
-            disabled={isAiLoading} 
-          />
-          <button type="submit" disabled={!aiInput.trim() || isAiLoading} className="absolute right-2 p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors">
-            <Send className="w-4 h-4 md:w-5 md:h-5" />
-          </button>
+      <div className="p-4 bg-[#151515] border-t border-white/[0.05]">
+        <form onSubmit={(e) => { e.preventDefault(); handleSend(aiInput); }} className="relative flex items-center">
+          <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="Query intelligence..." className="w-full pl-5 pr-14 py-4 bg-[#0D0D0D] border border-white/[0.05] rounded-xl outline-none text-white text-sm" disabled={isAiLoading} />
+          <button type="submit" disabled={!aiInput.trim() || isAiLoading} className="absolute right-2 p-2.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send className="w-4 h-4" /></button>
         </form>
       </div>
     </div>
