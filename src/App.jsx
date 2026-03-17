@@ -361,7 +361,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
   const filteredTx = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
   const recentTransactions = filteredTx.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
   
-  const [aiAlert, setAiAlert] = useState(() => sessionStorage.getItem('neofin-live-insight') || "Ready to analyze your financial velocity.");
+  const [aiAlert, setAiAlert] = useState(() => sessionStorage.getItem('neofin-live-insight') || "Ready when you are. Tap refresh to analyze your current cash flow.");
   const [isGeneratingAlert, setIsGeneratingAlert] = useState(false);
 
   const generateSmartInsight = async (e) => {
