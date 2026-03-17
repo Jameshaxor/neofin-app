@@ -190,7 +190,7 @@ export default function App() {
   }, [transactions]);
 
   const analytics = useMemo(() => {
-    let totalIncome = 0; let totalExpense = 0;
+    let totalIncome = 0; let totalExpense = 0; let totalInvested = 0;
     const categoryTotals = {}; const monthlyDataMap = {}; const currentMonthExpenses = {};
 
     const sortedTx = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -212,6 +212,8 @@ export default function App() {
           totalExpense += t.amount;
           currentMonthExpenses[t.category] = (currentMonthExpenses[t.category] || 0) + t.amount;
           categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
+          
+          if (t.category === 'Investing') totalInvested += t.amount;
         }
       }
     });
@@ -220,7 +222,7 @@ export default function App() {
     const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
     const pieData = Object.keys(categoryTotals).map(key => ({ name: key, value: categoryTotals[key] })).sort((a, b) => b.value - a.value);
 
-    return { totalIncome, totalExpense, balance, savingsRate, pieData, monthlyTrendData: Object.values(monthlyDataMap), currentMonthExpenses };
+    return { totalIncome, totalExpense, totalInvested, balance, savingsRate, pieData, monthlyTrendData: Object.values(monthlyDataMap), currentMonthExpenses };
   }, [transactions, selectedMonth]);
 
   const handleCreateProfile = async (name) => {
@@ -406,19 +408,32 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-8 stagger-2">
+      <div className="grid grid-cols-2 gap-4 mb-4 stagger-2">
         <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2rem] p-6 shadow-sm transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 group cursor-default">
-          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Total Inflow</p>
+          <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-3">Total Inflow</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white transition-transform duration-300 ease-out group-hover:scale-105 origin-left">
             ₹<AnimatedNumber value={analytics.totalIncome} />
           </p>
         </div>
         <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2rem] p-6 shadow-sm transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 group cursor-default">
-          <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3">Total Spends</p>
+          <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-3">Total Spends</p>
           <p className="text-2xl font-bold text-blue-600 dark:text-blue-500 transition-transform duration-300 ease-out group-hover:scale-105 origin-left">
             ₹<AnimatedNumber value={analytics.totalExpense} />
           </p>
         </div>
+      </div>
+
+      {/* Full-Width Investment Card */}
+      <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2rem] p-6 shadow-sm transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 group cursor-default mb-8 stagger-2 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-purple-50 dark:bg-purple-500/10 rounded-2xl transition-transform duration-300 ease-out group-hover:scale-110">
+             <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400 stroke-[2.5px]" />
+          </div>
+          <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest">Total Invested</p>
+        </div>
+        <p className="text-2xl font-bold text-gray-900 dark:text-white transition-transform duration-300 ease-out group-hover:scale-105 origin-right">
+          ₹<AnimatedNumber value={analytics.totalInvested || 0} />
+        </p>
       </div>
 
       <div className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-xl dark:shadow-2xl dark:shadow-blue-900/20 cursor-pointer stagger-3" onClick={() => setActiveTab('ai')}>
@@ -435,7 +450,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
       <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm group transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 stagger-3">
         <div className="flex justify-between items-center mb-8">
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-900 dark:text-white">Cash Flow</h3>
-          <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/[0.03] px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/5 uppercase tracking-widest">History</span>
+          <span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] bg-gray-50 dark:bg-white/[0.03] px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/5 uppercase tracking-widest">History</span>
         </div>
         <div className="h-48 w-full cursor-crosshair">
           <ResponsiveContainer width="100%" height="100%">
@@ -446,7 +461,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
                   if (active && payload && payload.length) {
                     return (
                       <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/10 p-3 rounded-2xl shadow-xl dark:shadow-2xl">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">{label}</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-[#525252] mb-2">{label}</p>
                         <div className="space-y-1">
                           <p className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Income: ₹{payload[0]?.value}</p>
                           <p className="text-xs font-bold text-rose-500 dark:text-rose-400">Expense: ₹{payload[1]?.value}</p>
@@ -462,14 +477,14 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
           </ResponsiveContainer>
         </div>
         <div className="flex justify-center gap-6 mt-6">
-          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Income</span></div>
-          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-rose-500"></div><span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Expense</span></div>
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-500"></div><span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest">Income</span></div>
+          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-rose-500"></div><span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest">Expense</span></div>
         </div>
       </div>
 
       <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm overflow-hidden transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 stagger-4">
         <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-900 dark:text-white mb-2">Spends Breakdown</h3>
-        <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-6">Current Cycle</p>
+        <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-6">Current Cycle</p>
         <div className="flex flex-col items-center">
           <div className="relative h-56 w-full flex items-center justify-center mb-8 group cursor-pointer">
             <ResponsiveContainer width="100%" height="100%">
@@ -480,7 +495,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none transition-transform duration-500 ease-out group-hover:scale-110">
-              <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-1">Total Spends</span>
+              <span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-1">Total Spends</span>
               <span className="text-3xl font-black text-gray-900 dark:text-white">₹{analytics.totalExpense}</span>
             </div>
           </div>
@@ -489,8 +504,8 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
               <div key={idx} className="flex items-center gap-3 group cursor-default">
                 <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-500">{item.name}</span>
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mt-0.5">₹{item.value}</span>
+                  <span className="text-[11px] font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-500">{item.name}</span>
+                  <span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase">₹{item.value}</span>
                 </div>
               </div>
             ))}
@@ -499,12 +514,12 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
       </div>
 
       <div className="flex items-center justify-between mb-4 px-2 stagger-4">
-        <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-500 dark:text-gray-400">Journal</h3>
+        <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-500 dark:text-[#525252]">Journal</h3>
         <div className="flex gap-2">
-           <button onClick={() => setActiveTab('tx')} className="p-2.5 rounded-xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white transition-all duration-300 ease-out active:scale-95 shadow-sm dark:shadow-none">
+           <button onClick={() => setActiveTab('tx')} className="p-2.5 rounded-xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] text-gray-500 dark:text-[#525252] hover:text-blue-600 dark:hover:text-white transition-all duration-300 ease-out active:scale-95 shadow-sm dark:shadow-none">
               <Search className="w-4 h-4" />
            </button>
-           <button onClick={() => setActiveTab('tx')} className="p-2.5 rounded-xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white transition-all duration-300 ease-out active:scale-95 shadow-sm dark:shadow-none">
+           <button onClick={() => setActiveTab('tx')} className="p-2.5 rounded-xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] text-gray-500 dark:text-[#525252] hover:text-blue-600 dark:hover:text-white transition-all duration-300 ease-out active:scale-95 shadow-sm dark:shadow-none">
               <Filter className="w-4 h-4" />
            </button>
         </div>
@@ -516,12 +531,12 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
             <div key={tx.id} className="flex items-center justify-between p-5 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.03] rounded-3xl group transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 hover:translate-x-1 cursor-pointer shadow-sm dark:shadow-none">
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-center justify-center bg-gray-50 dark:bg-[#151515] w-12 h-12 rounded-2xl border border-gray-100 dark:border-white/5 shrink-0 shadow-inner transition-colors duration-300 ease-out group-hover:bg-gray-100 dark:group-hover:bg-white/[0.03]">
-                  <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase leading-none mb-1">{month}</span>
+                  <span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase leading-none mb-1">{month}</span>
                   <span className="text-sm font-black text-gray-900 dark:text-white leading-none">{day}</span>
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-gray-900 dark:text-white tracking-wide line-clamp-1 transition-colors duration-300 ease-out group-hover:text-blue-600 dark:group-hover:text-blue-400">{tx.description}</h4>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
                 </div>
               </div>
               <span className={`text-sm font-black whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-gray-900 dark:text-white'}`}>
@@ -530,7 +545,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
             </div>
           );
         })}
-        {recentTransactions.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-4">No data to display.</p>}
+        {recentTransactions.length === 0 && <p className="text-center text-gray-500 dark:text-[#525252] text-sm py-4">No data to display.</p>}
       </div>
     </div>
   );
@@ -642,24 +657,24 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
             <div key={tx.id} className="flex items-center justify-between p-5 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.03] rounded-3xl group transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 hover:translate-x-1 cursor-pointer shadow-sm dark:shadow-none">
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-center justify-center bg-gray-50 dark:bg-[#151515] w-12 h-12 rounded-2xl border border-gray-100 dark:border-white/5 shrink-0 transition-colors duration-300 ease-out group-hover:bg-gray-100 dark:group-hover:bg-white/[0.03] shadow-inner">
-                  <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase leading-none mb-1">{month}</span>
+                  <span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase leading-none mb-1">{month}</span>
                   <span className="text-sm font-black text-gray-900 dark:text-white leading-none">{day}</span>
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-1">{tx.description}</h4>
-                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-600 dark:group-hover:text-blue-400">{tx.description}</h4>
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <span className={`text-sm font-black whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-gray-900 dark:text-white'}`}>
                   {tx.type === 'income' ? '+' : '-'}₹{tx.amount}
                 </span>
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(tx.id); }} className="text-gray-400 dark:text-gray-400 hover:text-rose-500 transition-colors duration-300 ease-out p-1 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(tx.id); }} className="text-gray-400 dark:text-[#525252] hover:text-rose-500 transition-colors duration-300 ease-out p-1 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           );
         })}
-        {displayData.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-10">No entries found.</p>}
+        {displayData.length === 0 && <p className="text-center text-gray-500 dark:text-[#525252] text-sm py-10">No entries found.</p>}
       </div>
     </div>
   );
@@ -691,7 +706,7 @@ function BudgetsView({ budgets, currentExpenses, db, user, appId }) {
                 <h3 className="font-bold text-gray-900 dark:text-white text-lg tracking-wide">{category}</h3>
                 <div className="text-right">
                   <span className={`text-sm font-black ${textColor}`}>{percentage.toFixed(0)}%</span>
-                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Consumed</p>
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252]">Consumed</p>
                 </div>
               </div>
               <div className="w-full bg-gray-100 dark:bg-[#1A1A1A] rounded-full h-1.5 mb-6 overflow-hidden">
@@ -699,12 +714,12 @@ function BudgetsView({ budgets, currentExpenses, db, user, appId }) {
               </div>
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 mb-1">Spent</p>
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252] mb-1">Spent</p>
                   <p className="font-bold text-gray-900 dark:text-white text-sm">₹{spent.toLocaleString('en-IN')}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 mb-1">Limit</p>
-                  <div className="flex items-center justify-end"><span className="text-gray-500 dark:text-gray-400 mr-1 text-xs">₹</span><input type="number" value={limit} onChange={(e) => handleUpdateBudget(category, e.target.value)} className="w-16 bg-transparent outline-none font-bold text-gray-900 dark:text-white text-sm text-right transition-all duration-300 ease-out focus:text-blue-500" /></div>
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252] mb-1">Limit</p>
+                  <div className="flex items-center justify-end"><span className="text-gray-500 dark:text-[#525252] mr-1 text-xs">₹</span><input type="number" value={limit} onChange={(e) => handleUpdateBudget(category, e.target.value)} className="w-16 bg-transparent outline-none font-bold text-gray-900 dark:text-white text-sm text-right transition-all duration-300 ease-out focus:text-blue-500" /></div>
                 </div>
               </div>
             </div>
@@ -744,8 +759,8 @@ function GoalsView({ goals, db, user, appId }) {
              <button onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-rose-500 transition-colors duration-300 ease-out"><X className="w-5 h-5" /></button>
           </div>
            <form onSubmit={handleAdd} className="space-y-4">
-             <div className="space-y-1.5"><label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Goal Name</label><input required type="text" value={newGoal.name} onChange={e=>setNewGoal({...newGoal, name: e.target.value})} className="w-full px-4 py-3 bg-gray-50 dark:bg-[#151515] border border-gray-200 dark:border-white/[0.05] rounded-xl outline-none text-gray-900 dark:text-white text-sm transition-all duration-300 ease-out focus:border-blue-500" /></div>
-             <div className="space-y-1.5"><label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Target Amount (₹)</label><input required type="number" value={newGoal.target} onChange={e=>setNewGoal({...newGoal, target: e.target.value})} className="w-full px-4 py-3 bg-gray-50 dark:bg-[#151515] border border-gray-200 dark:border-white/[0.05] rounded-xl outline-none text-gray-900 dark:text-white text-sm transition-all duration-300 ease-out focus:border-blue-500" /></div>
+             <div className="space-y-1.5"><label className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest">Goal Name</label><input required type="text" value={newGoal.name} onChange={e=>setNewGoal({...newGoal, name: e.target.value})} className="w-full px-4 py-3 bg-gray-50 dark:bg-[#151515] border border-gray-200 dark:border-white/[0.05] rounded-xl outline-none text-gray-900 dark:text-white text-sm transition-all duration-300 ease-out focus:border-blue-500" /></div>
+             <div className="space-y-1.5"><label className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest">Target Amount (₹)</label><input required type="number" value={newGoal.target} onChange={e=>setNewGoal({...newGoal, target: e.target.value})} className="w-full px-4 py-3 bg-gray-50 dark:bg-[#151515] border border-gray-200 dark:border-white/[0.05] rounded-xl outline-none text-gray-900 dark:text-white text-sm transition-all duration-300 ease-out focus:border-blue-500" /></div>
              <button type="submit" className="w-full py-3.5 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest mt-2 transition-all duration-300 ease-out hover:bg-blue-700 active:scale-95 shadow-md shadow-blue-500/20">Create Target</button>
            </form>
         </div>
@@ -760,15 +775,15 @@ function GoalsView({ goals, db, user, appId }) {
                 <span className="text-xl font-black" style={{ color: goal.color }}>{percent.toFixed(0)}%</span>
               </div>
               <div className="w-full bg-gray-100 dark:bg-[#1A1A1A] rounded-full h-1.5 mb-5 overflow-hidden"><div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${percent}%`, backgroundColor: goal.color }}></div></div>
-              <div className="flex justify-between text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-6"><span>₹{goal.current.toLocaleString('en-IN')} Saved</span><span>₹{goal.target.toLocaleString('en-IN')} Target</span></div>
+              <div className="flex justify-between text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-6"><span>₹{goal.current.toLocaleString('en-IN')} Saved</span><span>₹{goal.target.toLocaleString('en-IN')} Target</span></div>
               <div className="flex gap-3">
                 <button onClick={() => addFunds(goal, 500)} className="flex-1 py-3 text-xs font-bold uppercase tracking-widest bg-gray-50 dark:bg-[#151515] text-gray-900 dark:text-white rounded-xl transition-colors duration-300 ease-out hover:bg-gray-100 dark:hover:bg-[#202020] border border-gray-200 dark:border-transparent active:scale-95">+ ₹500</button>
-                <button onClick={() => deleteGoal(goal.id)} className="px-4 bg-gray-50 dark:bg-[#151515] text-gray-400 dark:text-gray-400 border border-gray-200 dark:border-transparent rounded-xl transition-colors duration-300 ease-out hover:text-rose-500 dark:hover:text-rose-500 active:scale-95"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => deleteGoal(goal.id)} className="px-4 bg-gray-50 dark:bg-[#151515] text-gray-400 dark:text-[#525252] border border-gray-200 dark:border-transparent rounded-xl transition-colors duration-300 ease-out hover:text-rose-500 dark:hover:text-rose-500 active:scale-95"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           )
         })}
-        {goals.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-10">No targets created yet.</p>}
+        {goals.length === 0 && <p className="text-center text-gray-500 dark:text-[#525252] text-sm py-10">No targets created yet.</p>}
       </div>
     </div>
   );
@@ -830,7 +845,7 @@ function AIAssistantView({ transactions, analytics, profile }) {
     <div className="h-[calc(100vh-14rem)] flex flex-col animate-fade-in stagger-1 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] overflow-hidden relative shadow-xl dark:shadow-2xl dark:shadow-black">
       <div className="bg-gray-50 dark:bg-[#151515] p-5 flex items-center justify-between border-b border-gray-200 dark:border-white/[0.05]">
         <div className="flex items-center gap-3"><Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-500" /><h2 className="font-black text-sm uppercase tracking-widest text-gray-900 dark:text-white">NeoFin Intelligence</h2></div>
-        <button onClick={handleClearChat} className="text-gray-400 dark:text-gray-400 hover:text-rose-500 transition-colors duration-300 ease-out"><Trash2 className="w-4 h-4" /></button>
+        <button onClick={handleClearChat} className="text-gray-400 dark:text-[#525252] hover:text-rose-500 transition-colors duration-300 ease-out"><Trash2 className="w-4 h-4" /></button>
       </div>
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
         {aiMessages.map((msg, idx) => (
