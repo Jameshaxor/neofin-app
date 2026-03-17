@@ -451,7 +451,8 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         {recentTransactions.map((tx) => {
           const { day, month } = formatToDateBlock(tx.date);
           return (
-            <div key={tx.id} onClick={() => setActiveTab('tx')} className="flex items-center justify-between p-5 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.03] rounded-3xl group transition-all hover:border-gray-300 dark:hover:border-white/10 hover:translate-x-1 cursor-pointer shadow-sm dark:shadow-none">
+            {/* The Bug Fix: Removed onClick from here so the CSS nudge works beautifully on tap without teleporting you! */}
+            <div key={tx.id} className="flex items-center justify-between p-5 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.03] rounded-3xl group transition-all hover:border-gray-300 dark:hover:border-white/10 hover:translate-x-1 cursor-pointer shadow-sm dark:shadow-none">
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-center justify-center bg-gray-50 dark:bg-[#151515] w-12 h-12 rounded-2xl border border-gray-100 dark:border-white/5 shrink-0 shadow-inner group-hover:bg-gray-100 dark:group-hover:bg-white/[0.03] transition-colors">
                   <span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase leading-none mb-1">{month}</span>
