@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LineChart, Line, PieChart, Pie, Cell, 
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+  XAxis, YAxis, Tooltip, ResponsiveContainer 
 } from 'recharts';
 import { 
   LayoutDashboard, Receipt, Activity, Target, 
   Sparkles, Moon, Sun, Plus, Search, Download, 
-  Trash2, AlertCircle, ArrowUpRight, ArrowDownRight, 
-  Wallet, Send, Bot, User, CheckCircle,
-  TrendingUp, Compass, Calendar, ChevronDown, Loader2, LogOut,
-  Bell, Filter, ChevronRight, X, RefreshCw
+  Trash2, ArrowDownRight, Send, CheckCircle,
+  TrendingUp, Compass, Calendar, Loader2, LogOut,
+  Bell, Filter, ChevronRight, X, RefreshCw,
+  Radar, MonitorPlay, Music, Dumbbell, Wifi, 
+  ShieldAlert, CreditCard, ChevronLeft, Home
 } from 'lucide-react';
 
 import WelcomeScreen from './components/WelcomeScreen';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, onSnapshot, deleteDoc, getDoc } from "firebase/firestore";
 
 // --- FIREBASE INITIALIZATION ---
@@ -33,6 +34,22 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'neofin-prod'; 
+
+// --- MOCK DATA FOR NEW USERS (Updated for Radar Testing) ---
+const MOCK_TRANSACTIONS = [
+  { id: '1', date: '2026-03-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
+  { id: '2', date: '2026-03-05', amount: 2000, type: 'expense', category: 'Investing', description: 'Zerodha Fund Transfer' },
+  { id: '3', date: '2026-03-08', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent' },
+  { id: '4', date: '2026-03-12', amount: 1000, type: 'expense', category: 'Investing', description: 'Groww SIP (Nifty 50)' },
+  { id: '5', date: '2026-03-15', amount: 450, type: 'expense', category: 'Food', description: 'Local Cafe' },
+  { id: '6', date: '2026-02-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
+  { id: '7', date: '2026-02-05', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent' },
+  { id: '8', date: '2026-02-15', amount: 1200, type: 'expense', category: 'Food', description: 'Zomato Orders' },
+  { id: '9', date: '2026-03-12', amount: 649, type: 'expense', category: 'Entertainment', description: 'Netflix Premium' },
+  { id: '10', date: '2026-02-12', amount: 649, type: 'expense', category: 'Entertainment', description: 'Netflix Premium' },
+  { id: '11', date: '2026-03-22', amount: 1178, type: 'expense', category: 'Housing', description: 'Jio Fiber' },
+  { id: '12', date: '2026-02-22', amount: 1178, type: 'expense', category: 'Housing', description: 'Jio Fiber' },
+];
 
 const INITIAL_BUDGETS = { Housing: 9000, Food: 3500, Transport: 2000, Investing: 3000, Education: 1500, Entertainment: 1500 };
 const INITIAL_GOALS = [
@@ -51,7 +68,6 @@ const getMonthYearString = (dateObj) => {
   return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// FIXED CATEGORIZATION LOGIC
 const autoCategorize = (description) => {
   const desc = (description || '').toLowerCase();
   if (desc.match(/zerodha|groww|upstox|angelone|indmoney|sip|mutual fund|stock/)) return 'Investing';
@@ -60,7 +76,6 @@ const autoCategorize = (description) => {
   if (desc.match(/cafe|mess|food|grocery|restaurant|swiggy|zomato|zepto|blinkit/)) return 'Food';
   if (desc.match(/netflix|spotify|movie|bookmyshow|hotstar|hostar|prime|jiocinema|jiohotstar|subscription/)) return 'Entertainment';
   if (desc.match(/amazon|flipkart|myntra|ajio|cloth|shoe/)) return 'Shopping';
-  // Removed "recharge" from Housing so it correctly falls to 'Other' or user can manually set it.
   if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|broadband|jio fiber/)) return 'Housing';
   return 'Other';
 };
@@ -75,6 +90,68 @@ const formatToDateBlock = (dateString) => {
     return { day: '00', month: '---' };
   }
 };
+
+// --- GHOST SUBSCRIPTION DETECTION ALGORITHM ---
+const detectSubscriptions = (txs) => {
+  const expenses = txs.filter(t => t.type === 'expense');
+  const groups = {};
+
+  // Group by identical description and exact amount
+  expenses.forEach(t => {
+    const desc = (t.description || '').trim();
+    const amt = t.amount;
+    const key = `${desc.toLowerCase()}_${amt}`;
+    
+    if (!groups[key]) {
+      groups[key] = { name: desc, amount: amt, category: t.category, dates: [] };
+    }
+    groups[key].dates.push(t.date);
+  });
+
+  const subscriptions = [];
+  let idCounter = 1;
+
+  Object.values(groups).forEach(group => {
+    // Get unique months ("YYYY-MM")
+    const uniqueMonths = [...new Set(group.dates.map(d => d.substring(0, 7)))].sort();
+    
+    if (uniqueMonths.length >= 2) {
+      let hasConsecutive = false;
+      
+      // Check for at least one consecutive calendar month jump
+      for (let i = 0; i < uniqueMonths.length - 1; i++) {
+        const [y1, m1] = uniqueMonths[i].split('-').map(Number);
+        const [y2, m2] = uniqueMonths[i+1].split('-').map(Number);
+        if ((y2 * 12 + m2) - (y1 * 12 + m1) === 1) {
+          hasConsecutive = true;
+          break;
+        }
+      }
+
+      if (hasConsecutive) {
+        // Find the most recent date to establish the recurring day
+        const latestDate = group.dates.sort().pop();
+        const day = new Date(latestDate).getDate();
+        
+        const s = ["th", "st", "nd", "rd"];
+        const v = day % 100;
+        const suffix = s[(v - 20) % 10] || s[v] || s[0];
+        
+        subscriptions.push({
+          id: idCounter++,
+          name: group.name,
+          category: group.category,
+          amount: group.amount,
+          date: `${day}${suffix} of every month`
+        });
+      }
+    }
+  });
+  
+  // Return sorted by highest burn rate
+  return subscriptions.sort((a, b) => b.amount - a.amount);
+};
+
 
 // --- ANIMATED NUMBER COMPONENT ---
 const AnimatedNumber = ({ value }) => {
@@ -134,6 +211,7 @@ export default function App() {
   const [isInitializingAccount, setIsInitializingAccount] = useState(false);
 
   const [activeTab, setActiveTab] = useState('home');
+  const [showRadar, setShowRadar] = useState(false); // Controls the Subscription Radar View
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('neofin-theme') !== 'light');
   
   useEffect(() => {
@@ -177,6 +255,9 @@ export default function App() {
     months.add(getMonthYearString(new Date())); 
     return Array.from(months).sort((a, b) => b.localeCompare(a)); 
   }, [transactions]);
+
+  // Execute the Ghost Subscription detection algorithm
+  const detectedSubs = useMemo(() => detectSubscriptions(transactions), [transactions]);
 
   const analytics = useMemo(() => {
     let totalIncome = 0; let totalExpense = 0; let totalInvested = 0;
@@ -226,6 +307,7 @@ export default function App() {
         await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
         await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
         for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
+        for (const t of MOCK_TRANSACTIONS) { await setDoc(doc(db, baseRef, 'transactions', t.id), t); }
       }
     } catch (e) { console.error("Failed to setup profile:", e); } 
     finally { setIsInitializingAccount(false); }
@@ -257,6 +339,20 @@ export default function App() {
     { id: 'goals', icon: Target, label: 'Goals' },
     { id: 'ai', icon: Compass, label: 'Advisor' },
   ];
+
+  // Logic to intercept the Budgets tab to optionally show the Radar view
+  const renderTabContent = () => {
+    if (activeTab === 'home') return <DashboardView analytics={analytics} transactions={transactions} selectedMonth={selectedMonth} setActiveTab={setActiveTab} />;
+    if (activeTab === 'tx') return <TransactionsView transactions={transactions} selectedMonth={selectedMonth} db={db} user={user} appId={appId} />;
+    if (activeTab === 'budgets') {
+      if (showRadar) {
+        return <SubscriptionRadarView subscriptions={detectedSubs} onClose={() => setShowRadar(false)} />;
+      }
+      return <BudgetsView budgets={budgets} currentExpenses={analytics.currentMonthExpenses} db={db} user={user} appId={appId} detectedSubsCount={detectedSubs.length} onOpenRadar={() => setShowRadar(true)} />;
+    }
+    if (activeTab === 'goals') return <GoalsView goals={goals} db={db} user={user} appId={appId} />;
+    if (activeTab === 'ai') return <AIAssistantView transactions={transactions} analytics={analytics} profile={profile} />;
+  };
 
   return (
     <div className={`min-h-screen bg-gray-50 dark:bg-[#02040A] text-gray-900 dark:text-white font-sans selection:bg-blue-500/30 overflow-x-hidden pb-32 text-[15px] transition-colors duration-500 ease-out ${darkMode ? 'dark' : ''}`}>
@@ -291,29 +387,27 @@ export default function App() {
           </div>
         </header>
 
-        {/* MONTH SELECTOR */}
-        <div className="flex justify-end mb-6">
-          <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-xl px-3 py-1.5 flex items-center shadow-sm dark:shadow-none transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10">
-             <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" />
-             <select 
-               value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-               className="bg-transparent text-[11px] font-bold text-gray-900 dark:text-white uppercase tracking-widest outline-none appearance-none pr-4 cursor-pointer"
-             >
-               <option value="all" className="bg-white dark:bg-[#0D0D0D] text-gray-900 dark:text-white">ALL TIME</option>
-               {availableMonths.map(m => (
-                 <option key={m} value={m} className="bg-white dark:bg-[#0D0D0D] text-gray-900 dark:text-white">{m}</option>
-               ))}
-             </select>
+        {/* MONTH SELECTOR (Hide if Radar is active to keep UI clean) */}
+        {!showRadar && (
+          <div className="flex justify-end mb-6">
+            <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-xl px-3 py-1.5 flex items-center shadow-sm dark:shadow-none transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10">
+               <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" />
+               <select 
+                 value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
+                 className="bg-transparent text-[11px] font-bold text-gray-900 dark:text-white uppercase tracking-widest outline-none appearance-none pr-4 cursor-pointer"
+               >
+                 <option value="all" className="bg-white dark:bg-[#0D0D0D] text-gray-900 dark:text-white">ALL TIME</option>
+                 {availableMonths.map(m => (
+                   <option key={m} value={m} className="bg-white dark:bg-[#0D0D0D] text-gray-900 dark:text-white">{m}</option>
+                 ))}
+               </select>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* DYNAMIC VIEWS */}
-        <div key={activeTab} className="animate-page-enter">
-          {activeTab === 'home' && <DashboardView analytics={analytics} transactions={transactions} selectedMonth={selectedMonth} setActiveTab={setActiveTab} />}
-          {activeTab === 'tx' && <TransactionsView transactions={transactions} selectedMonth={selectedMonth} db={db} user={user} appId={appId} />}
-          {activeTab === 'budgets' && <BudgetsView budgets={budgets} currentExpenses={analytics.currentMonthExpenses} db={db} user={user} appId={appId} />}
-          {activeTab === 'goals' && <GoalsView goals={goals} db={db} user={user} appId={appId} />}
-          {activeTab === 'ai' && <AIAssistantView transactions={transactions} analytics={analytics} profile={profile} />}
+        <div key={activeTab + (showRadar ? '-radar' : '')} className="animate-page-enter">
+          {renderTabContent()}
         </div>
 
       </div>
@@ -325,26 +419,37 @@ export default function App() {
           {navItems.map((item) => (
             <button 
               key={item.id}
-              onClick={() => setActiveTab(item.id)} 
-              className={`flex flex-col items-center justify-center flex-1 py-3 rounded-3xl transition-all duration-500 ease-out ${activeTab === item.id ? 'text-blue-600 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
+              onClick={() => { setActiveTab(item.id); setShowRadar(false); }} 
+              className={`flex flex-col items-center justify-center flex-1 py-3 rounded-3xl transition-all duration-500 ease-out ${activeTab === item.id && !showRadar ? 'text-blue-600 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}
             >
-              <div className={`p-1.5 rounded-xl transition-all duration-500 ease-out mb-1 ${activeTab === item.id ? 'bg-blue-50 dark:bg-blue-600/10 shadow-sm dark:shadow-[0_0_20px_rgba(37,99,235,0.2)] scale-110' : 'scale-100'}`}>
-                <item.icon className={`w-5 h-5 transition-all duration-500 ease-out ${activeTab === item.id ? 'stroke-[2.5px] text-blue-600 dark:text-blue-500' : 'stroke-[1.5px]'}`} />
+              <div className={`p-1.5 rounded-xl transition-all duration-500 ease-out mb-1 ${activeTab === item.id && !showRadar ? 'bg-blue-50 dark:bg-blue-600/10 shadow-sm dark:shadow-[0_0_20px_rgba(37,99,235,0.2)] scale-110' : 'scale-100'}`}>
+                <item.icon className={`w-5 h-5 transition-all duration-500 ease-out ${activeTab === item.id && !showRadar ? 'stroke-[2.5px] text-blue-600 dark:text-blue-500' : 'stroke-[1.5px]'}`} />
               </div>
-              <span className={`text-[10px] font-bold uppercase tracking-widest transition-all duration-500 ease-out ${activeTab === item.id ? 'opacity-100 transform-none' : 'opacity-80 translate-y-0.5'}`}>{item.label}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-widest transition-all duration-500 ease-out ${activeTab === item.id && !showRadar ? 'opacity-100 transform-none' : 'opacity-80 translate-y-0.5'}`}>{item.label}</span>
             </button>
           ))}
         </div>
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
-        @keyframes pageEnter { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-page-enter { animation: pageEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Premium Page Physics */
+        @keyframes pageEnter { 
+          from { opacity: 0; transform: translateY(15px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+        .animate-page-enter { 
+          animation: pageEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+        }
+        /* Staggered Component Animations */
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
         .stagger-1 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.1s; opacity: 0; }
         .stagger-2 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.2s; opacity: 0; }
         .stagger-3 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.3s; opacity: 0; }
         .stagger-4 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.4s; opacity: 0; }
+
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1A1A1A; border-radius: 4px; }
@@ -355,7 +460,7 @@ export default function App() {
 }
 
 // ==========================================
-// DASHBOARD VIEW (SMARTER AI LOGIC)
+// DASHBOARD VIEW
 // ==========================================
 function DashboardView({ analytics, transactions, selectedMonth, setActiveTab }) {
   const filteredTx = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
@@ -377,7 +482,6 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
     const spendData = Object.entries(analytics.currentMonthExpenses)
       .map(([cat, amt]) => `${cat}: ₹${amt}`).join(', ');
     
-    // NEW, SMARTER PROMPT
     const prompt = `Analyze this user's finances for the current view:
     Income: ₹${analytics.totalIncome}
     Expenses: ₹${analytics.totalExpense}
@@ -581,7 +685,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
 }
 
 // ==========================================
-// TRANSACTIONS VIEW (LEDGER)
+// TRANSACTIONS VIEW (LEDGER) + EXPORT CSV
 // ==========================================
 function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -623,11 +727,36 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
     try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id)); } catch(e) {}
   };
 
+  // ONE-CLICK EXPORT LOGIC
+  const handleExportCSV = () => {
+    const headers = ['Date', 'Description', 'Category', 'Type', 'Amount'];
+    const csvRows = transactions.map(t => `${t.date},"${t.description}",${t.category},${t.type},${t.amount}`);
+    const csvString = [headers.join(','), ...csvRows].join('\n');
+    
+    const blob = new Blob([csvString], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `NeoFin_Ledger_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 px-2 stagger-1">
         <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Ledger</h2>
         <div className="flex gap-2">
+          {/* THE NEW EXPORT BUTTON */}
+          <button 
+            onClick={handleExportCSV} 
+            title="Download CSV"
+            className="w-10 h-10 rounded-xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] flex items-center justify-center transition-all duration-300 ease-out active:scale-95 hover:border-blue-500 hover:text-blue-500 dark:hover:border-blue-500/50 dark:hover:text-blue-400 shadow-sm dark:shadow-none text-gray-600 dark:text-gray-400"
+          >
+            <Download className="w-4 h-4" />
+          </button>
           <button onClick={() => setIsSearching(!isSearching)} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ease-out active:scale-95 ${isSearching ? 'bg-blue-600 text-white' : 'bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white shadow-sm dark:shadow-none'}`}>
             <Search className="w-4 h-4" />
           </button>
@@ -710,9 +839,9 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
 }
 
 // ==========================================
-// BUDGETS VIEW
+// BUDGETS VIEW (NOW WITH RADAR ENTRY POINT)
 // ==========================================
-function BudgetsView({ budgets, currentExpenses, db, user, appId }) {
+function BudgetsView({ budgets, currentExpenses, db, user, appId, detectedSubsCount, onOpenRadar }) {
   const handleUpdateBudget = async (cat, val) => {
     if(!user) return;
     try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'budgets', 'data'), { ...budgets, [cat]: parseFloat(val) || 0 }); } catch(e) {}
@@ -721,7 +850,31 @@ function BudgetsView({ budgets, currentExpenses, db, user, appId }) {
   return (
     <div>
       <div className="mb-8 px-2 stagger-1"><h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Budgets</h2></div>
-      <div className="space-y-6 stagger-2">
+      
+      {/* --- THE SUBSCRIPTION RADAR TRIGGER CARD --- */}
+      <div 
+        onClick={onOpenRadar}
+        className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-xl dark:shadow-2xl dark:shadow-blue-900/20 cursor-pointer transition-all hover:scale-[1.02] active:scale-95 stagger-2"
+      >
+        <div className="absolute right-[-5%] top-[-10%] w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none group-hover:scale-125 transition-transform duration-700"></div>
+        <div className="relative z-10 flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="relative flex items-center justify-center w-5 h-5">
+                <div className="absolute inset-0 bg-white/30 rounded-full animate-ping"></div>
+                <Radar className="w-4 h-4 text-white relative" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Subscription Radar</span>
+            </div>
+            <p className="text-xl font-bold tracking-tight">
+              {detectedSubsCount} Active Subscriptions
+            </p>
+          </div>
+          <ChevronRight className="w-6 h-6 text-white/50 group-hover:text-white transition-colors" />
+        </div>
+      </div>
+
+      <div className="space-y-6 stagger-3">
         {Object.keys(budgets).map(category => {
           const limit = budgets[category] || 0; const spent = currentExpenses[category] || 0;
           const percentage = limit > 0 ? Math.min((spent / limit) * 100, 100) : (spent > 0 ? 100 : 0);
@@ -757,6 +910,109 @@ function BudgetsView({ budgets, currentExpenses, db, user, appId }) {
       </div>
     </div>
   );
+}
+
+// ==========================================
+// SUBSCRIPTION RADAR VIEW (FULL SCREEN)
+// ==========================================
+function SubscriptionRadarView({ subscriptions, onClose }) {
+  const totalBurn = subscriptions.reduce((sum, sub) => sum + sub.amount, 0);
+
+  const getSubData = (category) => {
+    switch(category) {
+      case 'Entertainment': return { icon: MonitorPlay, color: '#ef4444' };
+      case 'Education': return { icon: MonitorPlay, color: '#8b5cf6' };
+      case 'Housing': return { icon: Home, color: '#f59e0b' };
+      case 'Food': return { icon: CreditCard, color: '#10b981' };
+      default: return { icon: CreditCard, color: '#3b82f6' };
+    }
+  }
+
+  return (
+    <div className="animate-fade-in pb-10">
+       {/* Header with Back Button */}
+       <div className="flex items-center gap-3 mb-8 px-2">
+         <button onClick={onClose} className="p-2 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/5 rounded-xl hover:text-blue-500 transition-colors shadow-sm dark:shadow-none">
+           <ChevronLeft className="w-5 h-5" />
+         </button>
+         <div className="flex items-center gap-3">
+           <div className="relative flex items-center justify-center w-8 h-8">
+             <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
+             <div className="relative bg-blue-600 rounded-full p-1.5 shadow-[0_0_15px_rgba(37,99,235,0.5)]">
+               <Radar className="w-4 h-4 text-white" />
+             </div>
+           </div>
+           <h2 className="text-xl font-black tracking-tight text-gray-900 dark:text-white">Radar</h2>
+         </div>
+       </div>
+
+       {/* Burn Rate Summary */}
+       <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm relative overflow-hidden group">
+         <div className="absolute right-[-10%] top-[-20%] w-40 h-40 bg-rose-500/5 rounded-full blur-3xl pointer-events-none"></div>
+         
+         <div className="flex items-center gap-2 mb-4">
+           <ShieldAlert className="w-4 h-4 text-rose-500" />
+           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Fixed Monthly Burn</h3>
+         </div>
+         
+         <div className="flex items-baseline gap-1 mb-2">
+           <span className="text-2xl font-bold text-gray-500 dark:text-gray-400 mb-1">₹</span>
+           <span className="text-5xl font-black tracking-tighter text-gray-900 dark:text-white">{totalBurn.toLocaleString('en-IN')}</span>
+         </div>
+         
+         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+           Automatically deducted across <span className="text-gray-900 dark:text-white font-bold">{subscriptions.length} active</span> subscriptions.
+         </p>
+       </div>
+
+       {/* Subscriptions List */}
+       <div className="flex items-center justify-between mb-4 px-2">
+         <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-500 dark:text-gray-400">Detected Ghosts</h3>
+       </div>
+
+       <div className="space-y-3 pb-8">
+         {subscriptions.map((sub) => {
+           const { icon: Icon, color } = getSubData(sub.category);
+           return (
+             <div key={sub.id} className="flex items-center justify-between p-5 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.03] rounded-3xl group transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 hover:translate-x-1 cursor-pointer shadow-sm dark:shadow-none">
+               
+               <div className="flex items-center gap-4">
+                 <div 
+                   className="flex flex-col items-center justify-center w-12 h-12 rounded-2xl shrink-0 shadow-inner"
+                   style={{ backgroundColor: `${color}15`, border: `1px solid ${color}30` }}
+                 >
+                   <Icon className="w-5 h-5" style={{ color: color }} />
+                 </div>
+                 <div>
+                   <h4 className="text-sm font-bold text-gray-900 dark:text-white tracking-wide">{sub.name}</h4>
+                   <div className="flex items-center gap-2 mt-1">
+                     <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">{sub.category}</span>
+                     <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-700"></span>
+                     <span className="text-[9px] font-medium text-gray-400 dark:text-gray-500">{sub.date}</span>
+                   </div>
+                 </div>
+               </div>
+
+               <div className="flex flex-col items-end">
+                 <span className="text-sm font-black text-gray-900 dark:text-white mb-0.5">₹{sub.amount}</span>
+                 <div className="flex items-center gap-1">
+                   <span className="relative flex h-1.5 w-1.5">
+                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                   </span>
+                   <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Active</span>
+                 </div>
+               </div>
+
+             </div>
+           );
+         })}
+         {subscriptions.length === 0 && (
+            <p className="text-center text-gray-500 dark:text-gray-400 text-sm py-10">No recurring subscriptions detected yet.</p>
+         )}
+       </div>
+    </div>
+  )
 }
 
 // ==========================================
@@ -819,7 +1075,7 @@ function GoalsView({ goals, db, user, appId }) {
 }
 
 // ==========================================
-// AI ASSISTANT VIEW (SMARTER AI LOGIC)
+// AI ASSISTANT VIEW
 // ==========================================
 function AIAssistantView({ transactions, analytics, profile }) {
   const [aiMessages, setAiMessages] = useState(() => {
@@ -837,7 +1093,6 @@ function AIAssistantView({ transactions, analytics, profile }) {
       const finData = transactions.length > 0 ? transactions.map(t => `- ${t.type}: ₹${t.amount} on ${t.category}`).join('\n') : "No data.";
       const ctx = aiMessages.slice(-3).map(m => `${m.role}: ${m.text}`).join('\n');
       
-      // NEW, SMARTER PROMPT
       const prompt = `You are NeoFin AI, an intelligent, sophisticated, and highly analytical Indian wealth advisor.
       You have direct access to the user's live financial data. Use it to give highly personalized, accurate advice.
       
