@@ -71,6 +71,37 @@ const formatToDateBlock = (dateString) => {
   }
 };
 
+// --- ANIMATED NUMBER COMPONENT ---
+// This creates the buttery smooth "tally up" effect for big numbers
+const AnimatedNumber = ({ value }) => {
+  const [currentValue, setCurrentValue] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp = null;
+    const duration = 1200; // 1.2 seconds to count up
+    const startValue = 0;
+
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      // easeOutQuart physics for a fast start and smooth tail
+      const easeProgress = 1 - Math.pow(1 - progress, 4);
+      
+      setCurrentValue(startValue + (value - startValue) * easeProgress);
+
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      } else {
+        setCurrentValue(value);
+      }
+    };
+
+    window.requestAnimationFrame(step);
+  }, [value]);
+
+  return <>{currentValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</>;
+};
+
 // --- TAVILY SEARCH INTEGRATION ---
 const searchWeb = async (query) => {
   const tavilyKey = import.meta.env.VITE_TAVILY_API_KEY; 
@@ -285,12 +316,15 @@ export default function App() {
           </div>
         </div>
 
-        {/* DYNAMIC VIEWS */}
-        {activeTab === 'home' && <DashboardView analytics={analytics} transactions={transactions} selectedMonth={selectedMonth} setActiveTab={setActiveTab} />}
-        {activeTab === 'tx' && <TransactionsView transactions={transactions} selectedMonth={selectedMonth} db={db} user={user} appId={appId} />}
-        {activeTab === 'budgets' && <BudgetsView budgets={budgets} currentExpenses={analytics.currentMonthExpenses} db={db} user={user} appId={appId} />}
-        {activeTab === 'goals' && <GoalsView goals={goals} db={db} user={user} appId={appId} />}
-        {activeTab === 'ai' && <AIAssistantView transactions={transactions} analytics={analytics} profile={profile} />}
+        {/* DYNAMIC VIEWS WRAPPED IN ANIMATION KEY */}
+        {/* By adding key={activeTab}, React cleanly remounts the div and retriggers the gorgeous page-enter CSS animation every time you switch tabs */}
+        <div key={activeTab} className="animate-page-enter">
+          {activeTab === 'home' && <DashboardView analytics={analytics} transactions={transactions} selectedMonth={selectedMonth} setActiveTab={setActiveTab} />}
+          {activeTab === 'tx' && <TransactionsView transactions={transactions} selectedMonth={selectedMonth} db={db} user={user} appId={appId} />}
+          {activeTab === 'budgets' && <BudgetsView budgets={budgets} currentExpenses={analytics.currentMonthExpenses} db={db} user={user} appId={appId} />}
+          {activeTab === 'goals' && <GoalsView goals={goals} db={db} user={user} appId={appId} />}
+          {activeTab === 'ai' && <AIAssistantView transactions={transactions} analytics={analytics} profile={profile} />}
+        </div>
 
       </div>
 
@@ -314,13 +348,24 @@ export default function App() {
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
-        @keyframes fadeIn { 
-          from { opacity: 0; transform: translateY(12px); } 
+        /* Premium Page Physics */
+        @keyframes pageEnter { 
+          from { opacity: 0; transform: translateY(15px); } 
           to { opacity: 1; transform: translateY(0); } 
         }
-        .animate-fade-in { 
-          animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; 
+        .animate-page-enter { 
+          animation: pageEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
         }
+        /* Staggered Component Animations */
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .stagger-1 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.1s; opacity: 0; }
+        .stagger-2 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.2s; opacity: 0; }
+        .stagger-3 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.3s; opacity: 0; }
+        .stagger-4 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.4s; opacity: 0; }
+
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1A1A1A; border-radius: 4px; }
@@ -344,12 +389,15 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
   else aiAlert = "Financial velocity is stable. Keep tracking to refine your AI model.";
 
   return (
-    <div className="animate-fade-in">
-      <div className="mb-10 text-center">
+    <div>
+      <div className="mb-10 text-center stagger-1">
         <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-[0.4em] mb-4">Available Liquidity</p>
         <div className="flex items-center justify-center">
           <span className="text-2xl font-medium text-gray-400 dark:text-[#525252] mr-3 mt-1">₹</span>
-          <h2 className="text-6xl md:text-7xl font-black tracking-tighter text-gray-900 dark:text-white">{analytics.balance.toLocaleString('en-IN')}</h2>
+          <h2 className="text-6xl md:text-7xl font-black tracking-tighter text-gray-900 dark:text-white">
+             {/* The new Animated Number! */}
+             <AnimatedNumber value={analytics.balance} />
+          </h2>
         </div>
         <div className="flex justify-center gap-2 mt-8">
           <div className="px-5 py-2.5 rounded-full bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] flex items-center gap-2.5 shadow-sm transition-all duration-300 ease-out hover:shadow-md">
@@ -362,18 +410,22 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4 mb-8 stagger-2">
         <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2rem] p-6 shadow-sm transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 group cursor-default">
           <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-3">Total Inflow</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white transition-transform duration-300 ease-out group-hover:scale-105 origin-left">₹{analytics.totalIncome.toLocaleString('en-IN')}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white transition-transform duration-300 ease-out group-hover:scale-105 origin-left">
+            ₹<AnimatedNumber value={analytics.totalIncome} />
+          </p>
         </div>
         <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2rem] p-6 shadow-sm transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 group cursor-default">
           <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-3">Total Spends</p>
-          <p className="text-2xl font-bold text-blue-600 dark:text-blue-500 transition-transform duration-300 ease-out group-hover:scale-105 origin-left">₹{analytics.totalExpense.toLocaleString('en-IN')}</p>
+          <p className="text-2xl font-bold text-blue-600 dark:text-blue-500 transition-transform duration-300 ease-out group-hover:scale-105 origin-left">
+            ₹<AnimatedNumber value={analytics.totalExpense} />
+          </p>
         </div>
       </div>
 
-      <div className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-xl dark:shadow-2xl dark:shadow-blue-900/20 cursor-pointer" onClick={() => setActiveTab('ai')}>
+      <div className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-xl dark:shadow-2xl dark:shadow-blue-900/20 cursor-pointer stagger-3" onClick={() => setActiveTab('ai')}>
         <div className="absolute right-[-5%] top-[-10%] w-40 h-40 bg-white/10 rounded-full blur-3xl transition-transform duration-700 ease-out group-hover:scale-150"></div>
         <div className="relative z-10">
           <div className="flex items-center gap-2.5 mb-4">
@@ -384,7 +436,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </div>
       </div>
 
-      <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm group transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10">
+      <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm group transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 stagger-3">
         <div className="flex justify-between items-center mb-8">
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-900 dark:text-white">Cash Flow</h3>
           <span className="text-[10px] font-bold text-gray-500 dark:text-[#525252] bg-gray-50 dark:bg-white/[0.03] px-2.5 py-1 rounded-lg border border-gray-200 dark:border-white/5 uppercase tracking-widest">History</span>
@@ -419,7 +471,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </div>
       </div>
 
-      <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm overflow-hidden transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10">
+      <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-7 mb-8 shadow-sm overflow-hidden transition-all duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 stagger-4">
         <h3 className="text-sm font-black uppercase tracking-[0.2em] text-gray-900 dark:text-white mb-2">Spends Breakdown</h3>
         <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase tracking-widest mb-6">Current Cycle</p>
         <div className="flex flex-col items-center">
@@ -450,7 +502,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4 px-2">
+      <div className="flex items-center justify-between mb-4 px-2 stagger-4">
         <h3 className="text-xs font-black uppercase tracking-[0.4em] text-gray-500 dark:text-[#525252]">Journal</h3>
         <div className="flex gap-2">
            <button onClick={() => setActiveTab('tx')} className="p-2.5 rounded-xl bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] text-gray-500 dark:text-[#525252] hover:text-blue-600 dark:hover:text-white transition-all duration-300 ease-out active:scale-95 shadow-sm dark:shadow-none">
@@ -461,7 +513,7 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
            </button>
         </div>
       </div>
-      <div className="space-y-3">
+      <div className="space-y-3 stagger-4">
         {recentTransactions.map((tx) => {
           const { day, month } = formatToDateBlock(tx.date);
           return (
@@ -532,7 +584,7 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
   };
 
   return (
-    <div className="animate-fade-in">
+    <div>
       <div className="flex items-center justify-between mb-6 px-2">
         <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Ledger</h2>
         <div className="flex gap-2">
@@ -546,7 +598,7 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
       </div>
 
       {isSearching && (
-        <div className="flex gap-2 mb-6 px-2 animate-fade-in">
+        <div className="flex gap-2 mb-6 px-2 stagger-1">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="text" placeholder="Search entries..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] rounded-xl outline-none text-sm text-gray-900 dark:text-white shadow-sm dark:shadow-none transition-all duration-300 ease-out focus:border-blue-500" />
@@ -558,7 +610,7 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
       )}
 
       {showAddForm && (
-        <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] p-6 rounded-[2rem] shadow-xl dark:shadow-2xl mb-8 animate-fade-in">
+        <div className="bg-white dark:bg-[#0D0D0D] border border-gray-200 dark:border-white/[0.05] p-6 rounded-[2rem] shadow-xl dark:shadow-2xl mb-8 stagger-1">
           <div className="flex justify-between items-center mb-6">
              <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-widest">New Entry</h3>
              <button onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-rose-500 transition-colors duration-300 ease-out"><X className="w-5 h-5" /></button>
@@ -587,7 +639,7 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
         </div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-3 stagger-2">
         {displayData.map(tx => {
           const { day, month } = formatToDateBlock(tx.date);
           return (
@@ -598,7 +650,7 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
                   <span className="text-sm font-black text-gray-900 dark:text-white leading-none">{day}</span>
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-600 dark:group-hover:text-blue-400">{tx.description}</h4>
+                  <h4 className="text-sm font-bold text-gray-900 dark:text-white tracking-wide transition-colors duration-300 ease-out group-hover:text-blue-600 dark:group-hover:text-blue-400 line-clamp-1">{tx.description}</h4>
                   <p className="text-[10px] font-bold text-gray-500 dark:text-[#525252] uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
                 </div>
               </div>
@@ -627,40 +679,42 @@ function BudgetsView({ budgets, currentExpenses, db, user, appId }) {
   };
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div>
       <div className="mb-8 px-2"><h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Budgets</h2></div>
-      {Object.keys(budgets).map(category => {
-        const limit = budgets[category] || 0; const spent = currentExpenses[category] || 0;
-        const percentage = limit > 0 ? Math.min((spent / limit) * 100, 100) : (spent > 0 ? 100 : 0);
-        let statusColor = percentage > 75 ? "bg-[#f59e0b]" : "bg-[#10b981]"; 
-        let textColor = percentage > 75 ? "text-[#f59e0b]" : "text-[#10b981]";
-        if (percentage >= 100) { statusColor = "bg-[#ef4444]"; textColor = "text-[#ef4444]"; }
+      <div className="space-y-6 stagger-1">
+        {Object.keys(budgets).map(category => {
+          const limit = budgets[category] || 0; const spent = currentExpenses[category] || 0;
+          const percentage = limit > 0 ? Math.min((spent / limit) * 100, 100) : (spent > 0 ? 100 : 0);
+          let statusColor = percentage > 75 ? "bg-[#f59e0b]" : "bg-[#10b981]"; 
+          let textColor = percentage > 75 ? "text-[#f59e0b]" : "text-[#10b981]";
+          if (percentage >= 100) { statusColor = "bg-[#ef4444]"; textColor = "text-[#ef4444]"; }
 
-        return (
-          <div key={category} className="bg-white dark:bg-[#0D0D0D] p-6 rounded-[2rem] border border-gray-200 dark:border-white/[0.05] transition-colors duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 shadow-sm dark:shadow-none">
-            <div className="flex justify-between items-start mb-6">
-              <h3 className="font-bold text-gray-900 dark:text-white text-lg tracking-wide">{category}</h3>
-              <div className="text-right">
-                <span className={`text-sm font-black ${textColor}`}>{percentage.toFixed(0)}%</span>
-                <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252]">Consumed</p>
+          return (
+            <div key={category} className="bg-white dark:bg-[#0D0D0D] p-6 rounded-[2rem] border border-gray-200 dark:border-white/[0.05] transition-colors duration-300 ease-out hover:border-gray-300 dark:hover:border-white/10 shadow-sm dark:shadow-none">
+              <div className="flex justify-between items-start mb-6">
+                <h3 className="font-bold text-gray-900 dark:text-white text-lg tracking-wide">{category}</h3>
+                <div className="text-right">
+                  <span className={`text-sm font-black ${textColor}`}>{percentage.toFixed(0)}%</span>
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252]">Consumed</p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-100 dark:bg-[#1A1A1A] rounded-full h-1.5 mb-6 overflow-hidden">
+                <div className={`h-full rounded-full ${statusColor} transition-all duration-1000 ease-out`} style={{ width: `${percentage}%` }}></div>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252] mb-1">Spent</p>
+                  <p className="font-bold text-gray-900 dark:text-white text-sm">₹{spent.toLocaleString('en-IN')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252] mb-1">Limit</p>
+                  <div className="flex items-center justify-end"><span className="text-gray-500 dark:text-[#525252] mr-1 text-xs">₹</span><input type="number" value={limit} onChange={(e) => handleUpdateBudget(category, e.target.value)} className="w-16 bg-transparent outline-none font-bold text-gray-900 dark:text-white text-sm text-right transition-all duration-300 ease-out focus:text-blue-500" /></div>
+                </div>
               </div>
             </div>
-            <div className="w-full bg-gray-100 dark:bg-[#1A1A1A] rounded-full h-1.5 mb-6 overflow-hidden">
-              <div className={`h-full rounded-full ${statusColor} transition-all duration-1000 ease-out`} style={{ width: `${percentage}%` }}></div>
-            </div>
-            <div className="flex justify-between items-end">
-              <div>
-                <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252] mb-1">Spent</p>
-                <p className="font-bold text-gray-900 dark:text-white text-sm">₹{spent.toLocaleString('en-IN')}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500 dark:text-[#525252] mb-1">Limit</p>
-                <div className="flex items-center justify-end"><span className="text-gray-500 dark:text-[#525252] mr-1 text-xs">₹</span><input type="number" value={limit} onChange={(e) => handleUpdateBudget(category, e.target.value)} className="w-16 bg-transparent outline-none font-bold text-gray-900 dark:text-white text-sm text-right transition-all duration-300 ease-out focus:text-blue-500" /></div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -682,7 +736,7 @@ function GoalsView({ goals, db, user, appId }) {
   const deleteGoal = async (id) => { if(!user || !window.confirm("Delete goal?")) return; try { await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'goals', id)); } catch(e){} }
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div>
       <div className="flex items-center justify-between mb-8 px-2">
         <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Targets</h2>
         <button onClick={() => setShowAdd(!showAdd)} className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center transition-all duration-300 ease-out hover:scale-105 active:scale-95 shadow-md shadow-blue-500/20"><Plus className="w-5 h-5 text-white" /></button>
@@ -700,7 +754,7 @@ function GoalsView({ goals, db, user, appId }) {
            </form>
         </div>
       )}
-      <div className="space-y-4">
+      <div className="space-y-4 stagger-1">
         {goals.map(goal => {
           const percent = goal.target > 0 ? Math.min((goal.current / goal.target) * 100, 100) : 0;
           return (
@@ -785,7 +839,7 @@ function AIAssistantView({ transactions, analytics, profile }) {
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
         {aiMessages.map((msg, idx) => (
           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm shadow-md shadow-blue-500/20' : 'bg-gray-50 dark:bg-[#151515] text-gray-700 dark:text-[#A3A3A3] border border-gray-100 dark:border-white/[0.05] rounded-tl-sm'}`}>
+            <div className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed transition-all duration-300 ease-out ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm shadow-md shadow-blue-500/20' : 'bg-gray-50 dark:bg-[#151515] text-gray-700 dark:text-[#A3A3A3] border border-gray-100 dark:border-white/[0.05] rounded-tl-sm'}`}>
                <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\*\*(.*?)\*\*/g, msg.role === 'user' ? '<strong class="text-white">$1</strong>' : '<strong class="text-gray-900 dark:text-white">$1</strong>') }} />
             </div>
           </div>
