@@ -115,25 +115,23 @@ const AnimatedNumber = ({ value }) => {
   return <>{currentValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</>;
 };
 
-// --- GEMINI API INTEGRATION ---
+// --- GROQ API INTEGRATION (RESTORED!) ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GROQ_API_KEY; 
-  // Works with your existing API setup
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-  
-  const payload = {
-    contents: [{ parts: [{ text: prompt }] }],
-    systemInstruction: { parts: [{ text: systemInstruction }] }
-  };
-
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY; 
   try {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile", 
+        messages: [{ role: "system", content: systemInstruction }, { role: "user", content: prompt }],
+        temperature: 0.7
+      })
+    });
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't generate a response.";
-  } catch (error) {
-    return "Connection to AI advisor failed. Please try again later.";
-  }
+    if (data.error) return `AI Error: ${data.error.message}`;
+    return data.choices[0].message.content;
+  } catch (error) { return "The AI Advisor is currently offline. Check your connection!"; }
 };
 
 // ==========================================
@@ -331,7 +329,7 @@ export default function App() {
 
       </div>
 
-      {/* COMMANDER DOCK */}
+      {/* COMMANDER DOCK (WITH IMPROVED LEGIBILITY) */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[94%] max-w-md z-50">
         <div className="bg-white/90 dark:bg-[#0D0D0D]/95 backdrop-blur-3xl border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-1.5 flex items-center justify-between shadow-2xl dark:shadow-black relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-gray-300 dark:via-white/10 to-transparent"></div>
