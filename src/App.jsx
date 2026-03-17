@@ -34,18 +34,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'neofin-prod'; 
 
-// --- MOCK DATA FOR NEW USERS ---
-const MOCK_TRANSACTIONS = [
-  { id: '1', date: '2026-03-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
-  { id: '2', date: '2026-03-05', amount: 2000, type: 'expense', category: 'Investing', description: 'Zerodha Fund Transfer' },
-  { id: '3', date: '2026-03-08', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent & Utilities' },
-  { id: '4', date: '2026-03-12', amount: 1000, type: 'expense', category: 'Investing', description: 'Groww SIP (Nifty 50)' },
-  { id: '5', date: '2026-03-15', amount: 450, type: 'expense', category: 'Food', description: 'Local Cafe' },
-  { id: '6', date: '2026-02-01', amount: 15000, type: 'income', category: 'Income', description: 'Monthly Allowance' },
-  { id: '7', date: '2026-02-05', amount: 8500, type: 'expense', category: 'Housing', description: 'Room Rent & Utilities' },
-  { id: '8', date: '2026-02-15', amount: 1200, type: 'expense', category: 'Food', description: 'Zomato Orders' },
-];
-
 const INITIAL_BUDGETS = { Housing: 9000, Food: 3500, Transport: 2000, Investing: 3000, Education: 1500, Entertainment: 1500 };
 const INITIAL_GOALS = [
   { id: 'g1', name: 'Emergency Fund', target: 50000, current: 15000, color: '#10b981' },
@@ -63,6 +51,7 @@ const getMonthYearString = (dateObj) => {
   return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
 };
 
+// FIXED CATEGORIZATION LOGIC
 const autoCategorize = (description) => {
   const desc = (description || '').toLowerCase();
   if (desc.match(/zerodha|groww|upstox|angelone|indmoney|sip|mutual fund|stock/)) return 'Investing';
@@ -71,7 +60,8 @@ const autoCategorize = (description) => {
   if (desc.match(/cafe|mess|food|grocery|restaurant|swiggy|zomato|zepto|blinkit/)) return 'Food';
   if (desc.match(/netflix|spotify|movie|bookmyshow|hotstar|hostar|prime|jiocinema|jiohotstar|subscription/)) return 'Entertainment';
   if (desc.match(/amazon|flipkart|myntra|ajio|cloth|shoe/)) return 'Shopping';
-  if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|broadband|recharge|jio fiber/)) return 'Housing';
+  // Removed "recharge" from Housing so it correctly falls to 'Other' or user can manually set it.
+  if (desc.match(/rent|hostel|pg|room|maintenance|electric|wifi|broadband|jio fiber/)) return 'Housing';
   return 'Other';
 };
 
@@ -115,7 +105,7 @@ const AnimatedNumber = ({ value }) => {
   return <>{currentValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</>;
 };
 
-// --- GROQ API INTEGRATION (RESTORED!) ---
+// --- GROQ API INTEGRATION ---
 const callGeminiAPI = async (prompt, systemInstruction) => {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY; 
   try {
@@ -236,7 +226,6 @@ export default function App() {
         await setDoc(doc(db, baseRef, 'profile', 'data'), { name: name.trim(), joinedAt: new Date().toISOString() });
         await setDoc(doc(db, baseRef, 'budgets', 'data'), INITIAL_BUDGETS);
         for (const g of INITIAL_GOALS) { await setDoc(doc(db, baseRef, 'goals', g.id), g); }
-        for (const t of MOCK_TRANSACTIONS) { await setDoc(doc(db, baseRef, 'transactions', t.id), t); }
       }
     } catch (e) { console.error("Failed to setup profile:", e); } 
     finally { setIsInitializingAccount(false); }
@@ -318,7 +307,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* DYNAMIC VIEWS WRAPPED IN ANIMATION KEY */}
+        {/* DYNAMIC VIEWS */}
         <div key={activeTab} className="animate-page-enter">
           {activeTab === 'home' && <DashboardView analytics={analytics} transactions={transactions} selectedMonth={selectedMonth} setActiveTab={setActiveTab} />}
           {activeTab === 'tx' && <TransactionsView transactions={transactions} selectedMonth={selectedMonth} db={db} user={user} appId={appId} />}
@@ -329,7 +318,7 @@ export default function App() {
 
       </div>
 
-      {/* COMMANDER DOCK (WITH IMPROVED LEGIBILITY) */}
+      {/* COMMANDER DOCK */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[94%] max-w-md z-50">
         <div className="bg-white/90 dark:bg-[#0D0D0D]/95 backdrop-blur-3xl border border-gray-200 dark:border-white/[0.05] rounded-[2.5rem] p-1.5 flex items-center justify-between shadow-2xl dark:shadow-black relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-gray-300 dark:via-white/10 to-transparent"></div>
@@ -349,24 +338,13 @@ export default function App() {
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
-        /* Premium Page Physics */
-        @keyframes pageEnter { 
-          from { opacity: 0; transform: translateY(15px); } 
-          to { opacity: 1; transform: translateY(0); } 
-        }
-        .animate-page-enter { 
-          animation: pageEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
-        }
-        /* Staggered Component Animations */
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes pageEnter { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-page-enter { animation: pageEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .stagger-1 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.1s; opacity: 0; }
         .stagger-2 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.2s; opacity: 0; }
         .stagger-3 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.3s; opacity: 0; }
         .stagger-4 { animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; animation-delay: 0.4s; opacity: 0; }
-
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1A1A1A; border-radius: 4px; }
@@ -377,18 +355,17 @@ export default function App() {
 }
 
 // ==========================================
-// DASHBOARD VIEW (NOW WITH LIVE AI)
+// DASHBOARD VIEW (SMARTER AI LOGIC)
 // ==========================================
 function DashboardView({ analytics, transactions, selectedMonth, setActiveTab }) {
   const filteredTx = selectedMonth === 'all' ? transactions : transactions.filter(t => t.date && t.date.substring(0, 7) === selectedMonth);
   const recentTransactions = filteredTx.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
   
-  // LIVE AI STRATEGY STATE
   const [aiAlert, setAiAlert] = useState(() => sessionStorage.getItem('neofin-live-insight') || "Ready to analyze your financial velocity.");
   const [isGeneratingAlert, setIsGeneratingAlert] = useState(false);
 
   const generateSmartInsight = async (e) => {
-    if (e) e.stopPropagation(); // Prevent clicking the card from firing
+    if (e) e.stopPropagation(); 
     setIsGeneratingAlert(true);
     
     if (transactions.length === 0) {
@@ -400,16 +377,22 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
     const spendData = Object.entries(analytics.currentMonthExpenses)
       .map(([cat, amt]) => `${cat}: ₹${amt}`).join(', ');
     
-    const prompt = `Analyze this user's current finances:
+    // NEW, SMARTER PROMPT
+    const prompt = `Analyze this user's finances for the current view:
     Income: ₹${analytics.totalIncome}
     Expenses: ₹${analytics.totalExpense}
     Savings Rate: ${analytics.savingsRate.toFixed(1)}%
-    Spends: ${spendData}
+    Spends Breakdown: ${spendData}
 
-    Write exactly ONE short, punchy sentence (under 15 words) giving direct financial advice or a sharp observation based on these numbers. Tone: Ruthless, elite Wall Street wealth manager. No pleasantries.`;
+    RULES FOR YOUR ADVICE:
+    1. Be mathematically logical. Do NOT tell the user to cut an expense if it represents a tiny percentage of their income. 
+    2. If their savings rate is high (e.g., over 40%), praise their high liquidity and suggest aggressive investing or allocating to targets.
+    3. If their savings rate is negative or low, gently point out their largest expense category to monitor.
+    4. Keep it exactly ONE short, punchy sentence (under 15 words).
+    5. Tone: Sophisticated, highly analytical, and encouraging wealth advisor. No panic, no aggressive jargon.`;
 
     try {
-      const response = await callGeminiAPI(prompt, "You are a sharp financial AI.");
+      const response = await callGeminiAPI(prompt, "You are an elite, highly logical financial AI. Focus on proportions and actual impact.");
       const cleanResponse = response.replace(/^["']|["']$/g, '').trim();
       setAiAlert(cleanResponse);
       sessionStorage.setItem('neofin-live-insight', cleanResponse);
@@ -468,11 +451,9 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
         </p>
       </div>
 
-      {/* DYNAMIC AI STRATEGIC NOTE */}
       <div className="bg-blue-600 rounded-[2.5rem] p-7 mb-8 text-white relative overflow-hidden group shadow-xl dark:shadow-2xl dark:shadow-blue-900/20 stagger-3">
         <div className="absolute right-[-5%] top-[-10%] w-40 h-40 bg-white/10 rounded-full blur-3xl transition-transform duration-700 ease-out group-hover:scale-150 pointer-events-none"></div>
         <div className="relative z-10 flex flex-col justify-center min-h-[80px]">
-          
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
               <Sparkles className={`w-4 h-4 text-white ${isGeneratingAlert ? 'animate-pulse' : ''}`} />
@@ -486,11 +467,9 @@ function DashboardView({ analytics, transactions, selectedMonth, setActiveTab })
                <RefreshCw className={`w-3.5 h-3.5 text-white ${isGeneratingAlert ? 'animate-spin' : ''}`} />
             </button>
           </div>
-
           <p className="text-lg font-bold leading-[1.3] mb-2 tracking-tight transition-opacity duration-300">
             "{aiAlert}"
           </p>
-          
         </div>
       </div>
 
@@ -840,7 +819,7 @@ function GoalsView({ goals, db, user, appId }) {
 }
 
 // ==========================================
-// AI ASSISTANT VIEW
+// AI ASSISTANT VIEW (SMARTER AI LOGIC)
 // ==========================================
 function AIAssistantView({ transactions, analytics, profile }) {
   const [aiMessages, setAiMessages] = useState(() => {
@@ -858,12 +837,13 @@ function AIAssistantView({ transactions, analytics, profile }) {
       const finData = transactions.length > 0 ? transactions.map(t => `- ${t.type}: ₹${t.amount} on ${t.category}`).join('\n') : "No data.";
       const ctx = aiMessages.slice(-3).map(m => `${m.role}: ${m.text}`).join('\n');
       
-      const prompt = `You are NeoFin AI, an elite Indian wealth manager and financial strategist.
+      // NEW, SMARTER PROMPT
+      const prompt = `You are NeoFin AI, an intelligent, sophisticated, and highly analytical Indian wealth advisor.
       You have direct access to the user's live financial data. Use it to give highly personalized, accurate advice.
       
       TONE & STYLE RULES:
-      1. Be sharp, concise, and highly professional. Speak like a top-tier fintech advisor.
-      2. NEVER explain basic arithmetic step-by-step. Do not say "I will subtract X from Y." Just give the final numbers confidently.
+      1. Be mathematically rigorous but encouraging. Never yell at the user or use aggressive Wall Street jargon.
+      2. Focus on proportions. If someone is spending a tiny amount of their income on entertainment, DO NOT tell them to cut it. Focus on the big picture.
       3. Treat the user like a serious investor, not a child.
       4. Always pivot from just giving the number to offering a smart, actionable financial insight (e.g., SIPs, market opportunities, saving strategies).
 
