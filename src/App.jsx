@@ -411,25 +411,25 @@ function DashboardView({ analytics, transactions, selectedMonth }) {
         <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white mb-2">Spends Breakdown</h3>
         <p className="text-[10px] font-bold text-[#525252] uppercase tracking-widest mb-6">Current Cycle</p>
         <div className="flex flex-col items-center">
-          <div className="relative h-56 w-full flex items-center justify-center mb-8">
+          <div className="relative h-56 w-full flex items-center justify-center mb-8 group cursor-pointer">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={analytics.pieData} innerRadius={70} outerRadius={90} paddingAngle={8} dataKey="value" stroke="none" animationDuration={1200}>
-                  {analytics.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} className="hover:opacity-70 outline-none" />)}
+                  {analytics.pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} className="hover:opacity-70 outline-none transition-opacity" />)}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none group-hover:scale-110 transition-transform duration-500">
               <span className="text-[10px] font-bold text-[#525252] uppercase tracking-widest mb-1">Total Spends</span>
               <span className="text-3xl font-black text-white">₹{analytics.totalExpense}</span>
             </div>
           </div>
           <div className="w-full grid grid-cols-2 gap-y-4 gap-x-8 px-2">
             {analytics.pieData.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-3">
+              <div key={idx} className="flex items-center gap-3 group cursor-default">
                 <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}></div>
                 <div className="flex flex-col">
-                  <span className="text-[11px] font-bold text-white tracking-wide">{item.name}</span>
+                  <span className="text-[11px] font-bold text-white tracking-wide group-hover:text-blue-400 transition-colors">{item.name}</span>
                   <span className="text-[10px] font-bold text-[#525252] uppercase">₹{item.value}</span>
                 </div>
               </div>
@@ -438,21 +438,31 @@ function DashboardView({ analytics, transactions, selectedMonth }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4 px-2">
+      <div className="flex items-center justify-between mb-6 px-1">
         <h3 className="text-xs font-black uppercase tracking-[0.4em] text-[#525252]">Journal</h3>
+        {/* Restored Journal Icons */}
+        <div className="flex gap-2">
+           <button className="p-2.5 rounded-xl bg-[#0D0D0D] border border-white/[0.05] text-[#525252] hover:text-white transition-all active:scale-90">
+              <Search className="w-4 h-4" />
+           </button>
+           <button className="p-2.5 rounded-xl bg-[#0D0D0D] border border-white/[0.05] text-[#525252] hover:text-white transition-all active:scale-90">
+              <Filter className="w-4 h-4" />
+           </button>
+        </div>
       </div>
       <div className="space-y-3">
         {recentTransactions.map((tx) => {
           const { day, month } = formatToDateBlock(tx.date);
           return (
-            <div key={tx.id} className="flex items-center justify-between p-5 bg-[#0D0D0D] border border-white/[0.03] rounded-3xl group transition-all">
+            // Restored the nudge and hover styling here!
+            <div key={tx.id} className="flex items-center justify-between p-5 bg-[#0D0D0D] border border-white/[0.03] rounded-3xl group transition-all hover:border-white/10 hover:translate-x-1 cursor-pointer">
               <div className="flex items-center gap-4">
-                <div className="flex flex-col items-center justify-center bg-[#151515] w-12 h-12 rounded-2xl border border-white/5 shrink-0 shadow-inner">
+                <div className="flex flex-col items-center justify-center bg-[#151515] w-12 h-12 rounded-2xl border border-white/5 shrink-0 shadow-inner group-hover:bg-white/[0.03] transition-colors">
                   <span className="text-[10px] font-bold text-[#525252] uppercase leading-none mb-1">{month}</span>
                   <span className="text-sm font-black text-white leading-none">{day}</span>
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white tracking-wide line-clamp-1">{tx.description}</h4>
+                  <h4 className="text-sm font-bold text-white tracking-wide line-clamp-1 group-hover:text-blue-400 transition-colors">{tx.description}</h4>
                   <p className="text-[10px] font-bold text-[#525252] uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
                 </div>
               </div>
@@ -531,8 +541,8 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
               <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-sm text-white" style={{colorScheme: 'dark'}} />
             </div>
             <div className="flex gap-3 pt-2">
-               <button type="button" onClick={() => setShowAddForm(false)} className="flex-1 py-3 bg-[#151515] text-white rounded-xl text-xs font-bold uppercase tracking-widest">Cancel</button>
-               <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest">Save</button>
+               <button type="button" onClick={() => setShowAddForm(false)} className="flex-1 py-3 bg-[#151515] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#202020] transition-colors">Cancel</button>
+               <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-700 transition-colors">Save</button>
             </div>
           </form>
         </div>
@@ -542,14 +552,15 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
         {sortedData.map(tx => {
           const { day, month } = formatToDateBlock(tx.date);
           return (
-            <div key={tx.id} className="flex items-center justify-between p-5 bg-[#0D0D0D] border border-white/[0.03] rounded-3xl group">
+            // Restored the nudge and hover styling here too!
+            <div key={tx.id} className="flex items-center justify-between p-5 bg-[#0D0D0D] border border-white/[0.03] rounded-3xl group transition-all hover:border-white/10 hover:translate-x-1 cursor-pointer">
               <div className="flex items-center gap-4">
-                <div className="flex flex-col items-center justify-center bg-[#151515] w-12 h-12 rounded-2xl border border-white/5 shrink-0">
+                <div className="flex flex-col items-center justify-center bg-[#151515] w-12 h-12 rounded-2xl border border-white/5 shrink-0 group-hover:bg-white/[0.03] transition-colors">
                   <span className="text-[10px] font-bold text-[#525252] uppercase leading-none mb-1">{month}</span>
                   <span className="text-sm font-black text-white leading-none">{day}</span>
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white tracking-wide">{tx.description}</h4>
+                  <h4 className="text-sm font-bold text-white tracking-wide group-hover:text-blue-400 transition-colors">{tx.description}</h4>
                   <p className="text-[10px] font-bold text-[#525252] uppercase mt-1 tracking-widest leading-none">{tx.category}</p>
                 </div>
               </div>
@@ -557,7 +568,7 @@ function TransactionsView({ transactions, selectedMonth, db, user, appId }) {
                 <span className={`text-sm font-black whitespace-nowrap ${tx.type === 'income' ? 'text-emerald-500' : 'text-white'}`}>
                   {tx.type === 'income' ? '+' : '-'}₹{tx.amount}
                 </span>
-                <button onClick={() => handleDelete(tx.id)} className="text-[#525252] hover:text-rose-500 transition-colors p-1"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => handleDelete(tx.id)} className="text-[#525252] hover:text-rose-500 transition-colors p-1 opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           );
@@ -588,7 +599,7 @@ function BudgetsView({ budgets, currentExpenses, db, user, appId, selectedMonth 
         if (percentage >= 100) { statusColor = "bg-[#ef4444]"; textColor = "text-[#ef4444]"; }
 
         return (
-          <div key={category} className="bg-[#0D0D0D] p-6 rounded-[2rem] border border-white/[0.05]">
+          <div key={category} className="bg-[#0D0D0D] p-6 rounded-[2rem] border border-white/[0.05] hover:border-white/10 transition-colors">
             <div className="flex justify-between items-start mb-6">
               <h3 className="font-bold text-white text-lg tracking-wide">{category}</h3>
               <div className="text-right">
@@ -643,7 +654,7 @@ function GoalsView({ goals, db, user, appId }) {
            <form onSubmit={handleAdd} className="space-y-4">
              <div className="space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Goal Name</label><input required type="text" value={newGoal.name} onChange={e=>setNewGoal({...newGoal, name: e.target.value})} className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-white text-sm" /></div>
              <div className="space-y-1.5"><label className="text-[10px] font-bold text-[#525252] uppercase tracking-widest">Target Amount (₹)</label><input required type="number" value={newGoal.target} onChange={e=>setNewGoal({...newGoal, target: e.target.value})} className="w-full px-4 py-3 bg-[#151515] border border-white/[0.05] rounded-xl outline-none text-white text-sm" /></div>
-             <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest mt-2">Create Target</button>
+             <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest mt-2 hover:bg-blue-700 transition-colors">Create Target</button>
            </form>
         </div>
       )}
@@ -651,7 +662,7 @@ function GoalsView({ goals, db, user, appId }) {
         {goals.map(goal => {
           const percent = goal.target > 0 ? Math.min((goal.current / goal.target) * 100, 100) : 0;
           return (
-            <div key={goal.id} className="bg-[#0D0D0D] border border-white/[0.05] p-6 rounded-[2rem]">
+            <div key={goal.id} className="bg-[#0D0D0D] border border-white/[0.05] p-6 rounded-[2rem] hover:border-white/10 transition-colors">
               <div className="flex justify-between items-start mb-5">
                 <h3 className="text-lg font-bold text-white">{goal.name}</h3>
                 <span className="text-xl font-black" style={{ color: goal.color }}>{percent.toFixed(0)}%</span>
@@ -721,7 +732,7 @@ function AIAssistantView({ transactions, analytics, profile, selectedMonth }) {
       <div className="p-4 bg-[#151515] border-t border-white/[0.05]">
         <form onSubmit={(e) => { e.preventDefault(); handleSend(aiInput); }} className="relative flex items-center">
           <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)} placeholder="Query intelligence..." className="w-full pl-5 pr-14 py-4 bg-[#0D0D0D] border border-white/[0.05] rounded-xl outline-none text-white text-sm" disabled={isAiLoading} />
-          <button type="submit" disabled={!aiInput.trim() || isAiLoading} className="absolute right-2 p-2.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Send className="w-4 h-4" /></button>
+          <button type="submit" disabled={!aiInput.trim() || isAiLoading} className="absolute right-2 p-2.5 bg-blue-600 text-white rounded-lg disabled:opacity-50 transition-all hover:bg-blue-700 active:scale-95"><Send className="w-4 h-4" /></button>
         </form>
       </div>
     </div>
